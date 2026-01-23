@@ -12,6 +12,8 @@ This is a touch-friendly Otamatone-style web instrument with pitch ribbon, cat m
 - Cat mouth opening with wah linkage, expressions react to pitch.
 - 可选特效（烟花/星屑/光晕），与弹奏相关联。
 - Selectable effects (fireworks/sparkles/glow) linked to playing.
+- 自动弹奏：曲目选择、播放/停止、循环、速度倍率。
+- Auto play: song select, play/stop, loop, speed multiplier.
 - 眼睛颜色可调，设定会保存到本地。
 - Adjustable eye color with local persistence.
 - 右侧控制区+粉丝回复草稿（自动保存）。
@@ -29,6 +31,8 @@ This is a touch-friendly Otamatone-style web instrument with pitch ribbon, cat m
 - In “Configure Position”, drag the ribbon to reposition it.
 - 点击“全屏”进入沉浸模式。
 - Click “Fullscreen” for immersive mode.
+- 选择曲目并点击“播放”自动弹奏（需先解锁音频）。
+- Select a song and click “Play” to auto-play (audio unlock required).
 
 ## 局域网访问（平板/手机）
 ## Local Network Access (Tablet/Phone)
@@ -51,6 +55,8 @@ http://<你的电脑局域网IP>:8000
 - `style.css`: Styling and cat head drawing.
 - `app.js`：音频引擎与交互逻辑。
 - `app.js`: Audio engine and interaction logic.
+- `songs_data.js`：内联曲库数据（离线可用）。
+- `songs_data.js`: Inlined song library (offline-ready).
 
 ## 说明
 ## Notes
@@ -58,6 +64,10 @@ http://<你的电脑局域网IP>:8000
 - Fullscreen exits on refresh; one tap restores it.
 - 特效在设备性能较低时会自动降频绘制。
 - Effects are throttled on lower-performance devices.
+- 自动弹奏曲库来自 `otamatone_pd_songpack/songs` 并已内联。
+- Auto-play songs are sourced from `otamatone_pd_songpack/songs` and inlined.
+- 形象仍需完善，但作者已无能为力（欢迎后续优化）。
+- The mascot still needs polish, but the author has reached their limit (PRs welcome).
 
 ## 许可证
 ## License

@@ -17,6 +17,7 @@
   const btnConfig = $("#btnConfig");
   const btnReload = $("#btnReload");
   const btnFullscreen = $("#btnFullscreen");
+  const btnAuto = $("#btnAuto");
   const ribbon = $("#ribbon");
   const ribbonCursor = $("#ribbonCursor");
   const stem = document.querySelector(".stem");
@@ -43,6 +44,9 @@
   const mouthAmp = $("#mouthAmp");
   const eyeColor = $("#eyeColor");
   const range = $("#range");
+  const songSelect = $("#songSelect");
+  const loop = $("#loop");
+  const speed = $("#speed");
 
   const volVal = $("#volVal");
   const vibDepthVal = $("#vibDepthVal");
@@ -52,6 +56,9 @@
   const mouthAmpVal = $("#mouthAmpVal");
   const eyeColorVal = $("#eyeColorVal");
   const rangeVal = $("#rangeVal");
+  const speedVal = $("#speedVal");
+  const songProgress = $("#songProgress");
+  const songNote = $("#songNote");
 
   const segBtns = Array.from(document.querySelectorAll(".segBtn"));
   const fxBtns = Array.from(document.querySelectorAll(".fxBtn"));
@@ -78,6 +85,7 @@
   const lerp = (a, b, t) => a + (b - a) * t;
   const expMap = (t, fMin, fMax) => fMax * Math.pow(fMin / fMax, t); // t=0->fMax, t=1->fMin
   const fmt = (x, digits=2) => Number(x).toFixed(digits);
+  const midiToFreq = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
   // --- Audio Engine (Web Audio API) ---
   class Engine {
@@ -237,6 +245,144 @@
     }
   }
 
+  class Player {
+    constructor(engine) {
+      this.engine = engine;
+      this.song = null;
+      this.speed = 1;
+      this.loop = false;
+      this.noteIndex = 0;
+      this.startTime = 0;
+      this.timer = null;
+      this.raf = null;
+      this.timeouts = [];
+      this.lookahead = 0.03;
+      this.scheduleAhead = 0.12;
+      this.totalDur = 0;
+      this.isPlaying = false;
+    }
+
+    loadSongs() {
+      if (typeof SONGS_DATA !== "undefined") return SONGS_DATA;
+      return null;
+    }
+
+    play(songId, speed=1, loop=false) {
+      if (!this.engine.isReady) {
+        return this.engine.init().then(() => this.play(songId, speed, loop));
+      }
+
+      const data = this.loadSongs();
+      if (!data || !data.songs || !data.songs[songId]) return;
+
+      this.stop();
+      this.song = data.songs[songId];
+      this.speed = speed;
+      this.loop = loop;
+      this.noteIndex = 0;
+      this.isPlaying = true;
+      if (ribbon) ribbon.classList.add("auto");
+      this.totalDur = this.song.notes.reduce((m, n) => Math.max(m, n.t + n.d), 0);
+      this.startTime = this.engine.ctx.currentTime + 0.05;
+
+      this.timer = setInterval(() => this.scheduler(), this.lookahead * 1000);
+      this.updateUI();
+    }
+
+    stop() {
+      this.isPlaying = false;
+      if (this.timer) clearInterval(this.timer);
+      this.timer = null;
+      if (this.raf) cancelAnimationFrame(this.raf);
+      this.raf = null;
+      this.timeouts.forEach((t) => clearTimeout(t));
+      this.timeouts.length = 0;
+      if (this.engine.isReady) {
+        this.engine.gate(false);
+      }
+      if (ribbon) ribbon.classList.remove("auto");
+      if (btnAuto) btnAuto.textContent = "播放";
+      if (songProgress) songProgress.style.width = "0%";
+      if (songNote) songNote.textContent = "—";
+    }
+
+    scheduler() {
+      if (!this.isPlaying || !this.song) return;
+      const now = this.engine.ctx.currentTime;
+      const notes = this.song.notes;
+
+      while (this.noteIndex < notes.length) {
+        const n = notes[this.noteIndex];
+        const noteTime = this.startTime + n.t / this.speed;
+        if (noteTime > now + this.scheduleAhead) break;
+        this.scheduleNote(n, this.noteIndex, notes);
+        this.noteIndex += 1;
+      }
+
+      const endTime = this.startTime + this.totalDur / this.speed;
+      if (now > endTime + 0.1 && this.noteIndex >= notes.length) {
+        if (this.loop) {
+          this.noteIndex = 0;
+          this.startTime = this.engine.ctx.currentTime + 0.05;
+        } else {
+          this.stop();
+        }
+      }
+    }
+
+    scheduleNote(note, idx, notes) {
+      const when = this.startTime + note.t / this.speed;
+      const dur = note.d / this.speed;
+      const next = notes[idx + 1];
+      const gap = next ? (next.t - (note.t + note.d)) / this.speed : 0.2;
+
+      const freq = midiToFreq(note.midi);
+      const vel = clamp(note.vel ?? 0.9, 0, 1);
+      const open = clamp(0.45 + vel * 0.5, 0.3, 1);
+
+      const startDelay = Math.max(0, (when - this.engine.ctx.currentTime) * 1000);
+      const startT = setTimeout(() => {
+        if (!this.isPlaying) return;
+        this.engine.setFrequency(freq);
+        this.engine.gate(true);
+        setRibbonCursorFromFreq(freq);
+        setPitchFromFreq(freq);
+        applyMouthOpen(open);
+        updateReadout(freq);
+      }, startDelay);
+      this.timeouts.push(startT);
+
+      if (gap > 0.04) {
+        const endDelay = Math.max(0, (when + dur - this.engine.ctx.currentTime) * 1000);
+        const endT = setTimeout(() => {
+          if (!this.isPlaying) return;
+          this.engine.gate(false);
+          applyMouthOpen(defaults.mouthRaw);
+        }, endDelay);
+        this.timeouts.push(endT);
+      }
+    }
+
+    updateUI() {
+      if (!this.isPlaying || !this.song) return;
+      const now = this.engine.ctx.currentTime;
+      const t = clamp((now - this.startTime) * this.speed, 0, this.totalDur);
+      const pct = this.totalDur > 0 ? (t / this.totalDur) * 100 : 0;
+      if (songProgress) songProgress.style.width = `${pct}%`;
+
+      const notes = this.song.notes;
+      for (let i = this.noteIndex - 1; i >= 0; i--) {
+        const n = notes[i];
+        if (t >= n.t && t <= n.t + n.d) {
+          if (songNote) songNote.textContent = `MIDI ${n.midi}`;
+          break;
+        }
+      }
+
+      this.raf = requestAnimationFrame(() => this.updateUI());
+    }
+  }
+
   function makeDriveCurve(amount) {
     const k = 5 + amount * 60;
     const n = 1024;
@@ -250,6 +396,7 @@
   }
 
   const engine = new Engine();
+  const player = new Player(engine);
 
   // --- Mouth drawing (SVG path) ---
   // We'll draw a cute "cat mouth" that opens with params.mouthOpen.
@@ -357,13 +504,7 @@
 
   function getRibbonFreqFromPointer(clientY) {
     const t = getRibbonTFromPointer(clientY);
-
-    // Range knob: controls min/max span
-    // Base span roughly A2~A6; with range knob we narrow or widen
-    const span = lerp(2.8, 4.6, params.range); // octaves
-    const fCenter = 330; // around E4
-    const fMax = fCenter * Math.pow(2, span/2);
-    const fMin = fCenter / Math.pow(2, span/2);
+    const { fMin, fMax } = getRangeBounds();
 
     // exponential mapping (more natural)
     let f = expMap(t, fMin, fMax);
@@ -374,6 +515,14 @@
     return f;
   }
 
+  function getRangeBounds() {
+    const span = lerp(2.8, 4.6, params.range); // octaves
+    const fCenter = 330; // around E4
+    const fMax = fCenter * Math.pow(2, span/2);
+    const fMin = fCenter / Math.pow(2, span/2);
+    return { fMin, fMax };
+  }
+
   function setRibbonCursor(clientY) {
     const rect = ribbon.getBoundingClientRect();
     const t = getRibbonTFromPointer(clientY);
@@ -381,8 +530,25 @@
     ribbonCursor.style.top = `${y}px`;
   }
 
+  function setRibbonCursorFromFreq(freq) {
+    const rect = ribbon.getBoundingClientRect();
+    const { fMin, fMax } = getRangeBounds();
+    const f = freq / Math.pow(2, params.octave);
+    const t = clamp(Math.log(f / fMax) / Math.log(fMin / fMax), 0, 1);
+    const y = t * rect.height;
+    ribbonCursor.style.top = `${y}px`;
+  }
+
   function setPitchFromPointer(clientY) {
     params.pitchT = getRibbonTFromPointer(clientY);
+    updateEars();
+  }
+
+  function setPitchFromFreq(freq) {
+    const { fMin, fMax } = getRangeBounds();
+    const f = freq / Math.pow(2, params.octave);
+    const t = clamp(Math.log(f / fMax) / Math.log(fMin / fMax), 0, 1);
+    params.pitchT = t;
     updateEars();
   }
 
@@ -605,6 +771,8 @@
   });
 
   btnStop.addEventListener("click", () => {
+    player.stop();
+    if (btnAuto) btnAuto.textContent = "播放";
     if (!engine.isReady) return;
     engine.stopAll();
     applyMouthOpen(defaults.mouthRaw, true);
@@ -613,6 +781,8 @@
   });
 
   btnReset.addEventListener("click", () => {
+    player.stop();
+    if (btnAuto) btnAuto.textContent = "播放";
     Object.assign(params, defaults);
     syncUIFromParams();
     if (engine.isReady) {
@@ -728,6 +898,52 @@
     params.range = v;
     rangeVal.textContent = fmt(v, 2);
   });
+
+  // --- Auto play UI ---
+  if (speed) {
+    speed.value = 1;
+    speedVal.textContent = "1.00x";
+    bindRange(speed, (v) => {
+      speedVal.textContent = `${fmt(v, 2)}x`;
+    });
+  }
+
+  function loadSongOptions() {
+    if (!songSelect) return;
+    const data = player.loadSongs();
+    songSelect.innerHTML = "";
+    if (!data || !data.index) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "未找到曲库";
+      songSelect.appendChild(opt);
+      return;
+    }
+    data.index.forEach((s) => {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent = s.title;
+      songSelect.appendChild(opt);
+    });
+    if (songSelect.options.length > 0) songSelect.selectedIndex = 0;
+  }
+
+  if (btnAuto) {
+    btnAuto.addEventListener("click", () => {
+      ensureAudioFromGesture();
+      if (player.isPlaying) {
+        player.stop();
+        btnAuto.textContent = "播放";
+        return;
+      }
+      const songId = songSelect ? songSelect.value : "";
+      if (!songId) return;
+      const spd = speed ? Number(speed.value) : 1;
+      const lp = loop ? loop.checked : false;
+      player.play(songId, spd, lp);
+      btnAuto.textContent = "停止";
+    });
+  }
 
   function syncUIFromParams() {
     vol.value = params.volume;
@@ -853,7 +1069,7 @@
     const w = fx.width;
     const h = fx.height;
     const cx = w * (0.2 + Math.random() * 0.6);
-    const cy = h * (0.2 + Math.random() * 0.45);
+    const cy = h * (0.08 + Math.random() * 0.32);
     const count = 18 + Math.floor(Math.random() * 10);
     const hue = 20 + Math.random() * 40;
     for (let i = 0; i < count; i++) {
@@ -976,6 +1192,8 @@
   syncUIFromParams();
   applyMouthOpen(params.mouthRaw, true);
   updateEars();
+  loadSongOptions();
+  if (speedVal && speed) speedVal.textContent = `${fmt(Number(speed.value || 1), 2)}x`;
   if (sessionStorage.getItem("otama_fs_restore") === "1") {
     sessionStorage.removeItem("otama_fs_restore");
     const restore = () => {
