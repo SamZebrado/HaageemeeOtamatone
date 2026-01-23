@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>橘猫电音蝌蚪（Otamatone）</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="viz" class="viz vizBg" width="900" height="300" aria-label="频谱可视化"></canvas>
+
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="dot"></div>
+        <div class="title">
+          <div class="t1">橘猫电音蝌蚪</div>
+          <div class="t2">触摸杆子发声｜捏猫脸做 wah</div>
+        </div>
+      </div>
+
+      <button id="btnPower" class="btn primary" type="button">启用声音</button>
+    </header>
+
+    <section class="stage">
+      <div class="leftPane">
+        <canvas id="fx" class="fx" aria-hidden="true"></canvas>
+        <div class="instrument" aria-label="Otamatone">
+          <div class="stem">
+            <div id="ribbon" class="ribbon" aria-label="音高条（上下滑动）">
+              <div class="ribbonHint">上下滑动</div>
+              <div id="ribbonCursor" class="ribbonCursor" aria-hidden="true"></div>
+            </div>
+        </div>
+
+        <div id="head" class="head" aria-label="猫头（按住上下拖动做 wah）">
+          <div class="catHead" aria-hidden="true">
+            <div class="ear left"></div>
+            <div class="ear right"></div>
+            <div class="face">
+              <div class="eye left"><div class="iris"><div class="pupil"></div></div></div>
+              <div class="eye right"><div class="iris"><div class="pupil"></div></div></div>
+              <div class="nose"></div>
+              <div class="philtrum"></div>
+              <div class="whiskers left">
+                <span></span><span></span><span></span>
+              </div>
+              <div class="whiskers right">
+                <span></span><span></span><span></span>
+              </div>
+            </div>
+          </div>
+          <svg class="mouthSvg" viewBox="0 0 512 512" aria-hidden="true">
+            <path id="mouthUpper" d="" stroke-linecap="round" stroke-linejoin="round"/>
+            <path id="mouthLower" d="" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+            <div class="headHint">按住猫头上下拖动</div>
+          </div>
+        </div>
+
+      </div>
+
+      <aside class="rightPane" aria-label="右侧控制区">
+        <section class="panel">
+          <div class="row">
+            <button id="btnStop" class="btn" type="button">停止</button>
+            <button id="btnReset" class="btn" type="button">重置</button>
+            <button id="btnConfig" class="btn" type="button">配置位置</button>
+            <button id="btnReload" class="btn" type="button">刷新缓存</button>
+            <button id="btnFullscreen" class="btn" type="button">全屏</button>
+
+            <div class="seg">
+              <button class="btn segBtn" data-oct="-1" type="button">Oct -1</button>
+              <button class="btn segBtn active" data-oct="0" type="button">Oct 0</button>
+              <button class="btn segBtn" data-oct="1" type="button">Oct +1</button>
+            </div>
+          </div>
+
+          <div class="fxBar">
+            <div class="fxLabel">特效</div>
+            <div class="fxGroup">
+              <button class="btn fxBtn active" data-fx="none" type="button">无</button>
+              <button class="btn fxBtn" data-fx="fireworks" type="button">烟花</button>
+              <button class="btn fxBtn" data-fx="sparkles" type="button">星屑</button>
+              <button class="btn fxBtn" data-fx="glow" type="button">光晕</button>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="ctrl">
+              <label>音量</label>
+              <input id="vol" type="range" min="0" max="1" step="0.01" />
+              <div class="val" id="volVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>Vibrato 深度</label>
+              <input id="vibDepth" type="range" min="0" max="40" step="0.1" />
+              <div class="val" id="vibDepthVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>Vibrato 速度</label>
+              <input id="vibRate" type="range" min="2" max="10" step="0.1" />
+              <div class="val" id="vibRateVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>Drive</label>
+              <input id="drive" type="range" min="0" max="1" step="0.01" />
+              <div class="val" id="driveVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>Wah 强度</label>
+              <input id="wah" type="range" min="0" max="1" step="0.01" />
+              <div class="val" id="wahVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>嘴巴开合幅度</label>
+              <input id="mouthAmp" type="range" min="0.5" max="1.6" step="0.01" />
+              <div class="val" id="mouthAmpVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>眼睛颜色</label>
+              <input id="eyeColor" type="color" value="#66c36a" />
+              <div class="val" id="eyeColorVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>音域（低→高）</label>
+              <input id="range" type="range" min="0" max="1" step="0.01" />
+              <div class="val" id="rangeVal"></div>
+            </div>
+          </div>
+
+          <div class="tips" id="tips">
+            <div class="tipLine">小米平板：建议全屏横屏，更容易双手操作。</div>
+            <div class="tipLine">杆子：按住并上下滑动改变音高；猫头：按住上下拖动改变嘴巴（wah）。</div>
+            <div class="tipLine mono" id="readout">—</div>
+          </div>
+        </section>
+
+        <aside class="reply" aria-label="粉丝回复框">
+          <div class="replyTitle">粉丝回复草稿</div>
+          <textarea id="replyBox" placeholder="在这里写你的回复…"></textarea>
+          <div class="replyHint">小贴士：直播时可直接复制粘贴或手动编辑。</div>
+        </aside>
+      </aside>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
