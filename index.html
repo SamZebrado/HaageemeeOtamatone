@@ -53,13 +53,13 @@
               <div class="smile right"></div>
               <div class="freckles left"><span></span><span></span><span></span></div>
               <div class="freckles right"><span></span><span></span><span></span></div>
-              <div class="whiskers left">
-                <span></span><span></span><span></span>
-              </div>
-              <div class="whiskers right">
-                <span></span><span></span><span></span>
-              </div>
             </div>
+          </div>
+          <div class="whiskers left" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+          <div class="whiskers right" aria-hidden="true">
+            <span></span><span></span><span></span>
           </div>
           <svg class="mouthSvg" viewBox="0 0 512 512" aria-hidden="true">
             <path id="mouthUpper" d="" stroke-linecap="round" stroke-linejoin="round"/>
@@ -128,54 +128,38 @@
             </div>
 
             <div class="ctrl">
-              <label>Vibrato 深度</label>
-              <input id="vibDepth" type="range" min="0" max="40" step="0.1" />
-              <div class="val" id="vibDepthVal"></div>
-            </div>
-
-            <div class="ctrl">
-              <label>Vibrato 速度</label>
-              <input id="vibRate" type="range" min="2" max="10" step="0.1" />
-              <div class="val" id="vibRateVal"></div>
-            </div>
-
-            <div class="ctrl">
-              <label>Drive</label>
-              <input id="drive" type="range" min="0" max="1" step="0.01" />
-              <div class="val" id="driveVal"></div>
-            </div>
-
-            <div class="ctrl">
-              <label>Wah 强度</label>
-              <input id="wah" type="range" min="0" max="1" step="0.01" />
-              <div class="val" id="wahVal"></div>
-            </div>
-
-            <div class="ctrl">
-              <label>嘴巴开合幅度</label>
-              <input id="mouthAmp" type="range" min="0.5" max="1.6" step="0.01" />
-              <div class="val" id="mouthAmpVal"></div>
-            </div>
-
-            <div class="ctrl">
-              <label>眼睛颜色</label>
-              <input id="eyeColor" type="color" value="#66c36a" />
-              <div class="val" id="eyeColorVal"></div>
-            </div>
-
-            <div class="ctrl">
               <label>Avatar</label>
               <button id="avatarToggleBtn" class="btn tiny" type="button">🐱</button>
             </div>
 
             <div class="ctrl">
+              <label>发音方案</label>
+              <select id="phonemeEngine" class="select small">
+                <option value="formant">Formant</option>
+                <option value="tadpole">Tadpole</option>
+              </select>
+            </div>
+
+            <div class="ctrl">
               <label>风格</label>
-              <input id="stylePreset" class="knob" type="range" min="0" max="2" step="1" />
+              <input id="stylePreset" class="knob" type="range" min="0" max="4" step="1" />
               <div class="val" id="stylePresetVal"></div>
             </div>
 
             <div class="ctrl">
-              <label>Na 风格</label>
+              <label>音节类型</label>
+              <select id="syllableType" class="select small">
+                <option value="na">Na</option>
+                <option value="da">Da</option>
+                <option value="sa">Sa</option>
+                <option value="shi">Shi</option>
+                <option value="ma">Ma</option>
+                <option value="la">La</option>
+              </select>
+            </div>
+
+            <div class="ctrl">
+              <label>音节风格</label>
               <select id="syllableStyle" class="select small">
                 <option value="off">Off</option>
                 <option value="soft">Soft</option>
@@ -191,18 +175,6 @@
                 <input id="syllableToggle" type="checkbox" />
                 <span>On</span>
               </label>
-            </div>
-
-            <div class="ctrl">
-              <label>音节类型</label>
-              <select id="syllableType" class="select small">
-                <option value="na">Na</option>
-                <option value="da">Da</option>
-                <option value="sa">Sa</option>
-                <option value="shi">Shi</option>
-                <option value="ma">Ma</option>
-                <option value="la">La</option>
-              </select>
             </div>
 
             <div class="ctrl">
@@ -227,6 +199,42 @@
               <label>Articulation</label>
               <input id="syllableArtic" class="knob" type="range" min="0" max="1" step="0.01" />
               <div class="val" id="syllableArticVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>嘴巴开合幅度</label>
+              <input id="mouthAmp" type="range" min="0.5" max="1.6" step="0.01" />
+              <div class="val" id="mouthAmpVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>眼睛颜色</label>
+              <input id="eyeColor" type="color" value="#66c36a" />
+              <div class="val" id="eyeColorVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>Vibrato 深度</label>
+              <input id="vibDepth" type="range" min="0" max="40" step="0.1" />
+              <div class="val" id="vibDepthVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>Vibrato 速度</label>
+              <input id="vibRate" type="range" min="2" max="10" step="0.1" />
+              <div class="val" id="vibRateVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>Wah 强度</label>
+              <input id="wah" type="range" min="0" max="1" step="0.01" />
+              <div class="val" id="wahVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>Drive</label>
+              <input id="drive" type="range" min="0" max="1" step="0.01" />
+              <div class="val" id="driveVal"></div>
             </div>
 
             <div class="ctrl">

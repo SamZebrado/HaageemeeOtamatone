@@ -70,6 +70,7 @@
   const songNote = $("#songNote");
   const syllableCountVal = $("#syllableCountVal");
   const stylePresetVal = $("#stylePresetVal");
+  const phonemeEngine = $("#phonemeEngine");
   const syllableRateVal = $("#syllableRateVal");
   const syllableGapVal = $("#syllableGapVal");
   const syllableArticVal = $("#syllableArticVal");
@@ -118,12 +119,20 @@
   };
 
   const SYLLABLE_TYPES = {
-    na:  { vowel: "a", cons: "n",  noise: null },
-    da:  { vowel: "a", cons: "d",  noise: { c: 2200, q: 8, g: 0.07, d: 0.03 } },
-    sa:  { vowel: "a", cons: "s",  noise: { c: 7200, q: 8, g: 0.08, d: 0.06 } },
-    shi: { vowel: "i", cons: "sh", noise: { c: 3800, q: 7, g: 0.07, d: 0.07 } },
-    ma:  { vowel: "a", cons: "m",  noise: null },
-    la:  { vowel: "e", cons: "l",  noise: null },
+    na:  { vowel: "a", consType: "nasal", consDur: 0.05, transDur: 0.06, consF1: 280, consF2: 900,  brightness: 0.85, noise: null },
+    da:  { vowel: "a", consType: "plosive", consDur: 0.03, transDur: 0.05, consF1: 420, consF2: 1500, brightness: 1.05, noise: { kind: "plosive", c: 3400, q: 5, g: 0.18, d: 0.03, hp: 2800 } },
+    sa:  { vowel: "a", consType: "fricative", consDur: 0.11, transDur: 0.06, consF1: 420, consF2: 1600, brightness: 1.1,  noise: { kind: "fricative", c: 7600, q: 7, g: 0.14, d: 0.14, hp: 2200 } },
+    shi: { vowel: "i", consType: "fricative", consDur: 0.12, transDur: 0.06, consF1: 340, consF2: 2100, brightness: 1.15, noise: { kind: "fricative", c: 4300, q: 6, g: 0.13, d: 0.15, hp: 1700 } },
+    ma:  { vowel: "a", consType: "nasal", consDur: 0.055, transDur: 0.06, consF1: 260, consF2: 820,  brightness: 0.8,  noise: null },
+    la:  { vowel: "e", consType: "liquid", consDur: 0.04, transDur: 0.05, consF1: 520, consF2: 1500, brightness: 1.05, noise: null },
+  };
+
+  const VOICE_PRESETS = {
+    0: { name: "Clean",  copies: 1, voiceMix: 0.35, noiseMul: 0.7, qMul: 0.9, detuneMul: 0.6, brightness: 0.9, consonantMul: 0.8 },
+    1: { name: "Otama",  copies: 1, voiceMix: 1.0,  noiseMul: 1.0, qMul: 1.0, detuneMul: 1.0, brightness: 1.0, consonantMul: 1.0 },
+    2: { name: "Kuri",   copies: 3, voiceMix: 1.35, noiseMul: 1.2, qMul: 1.1, detuneMul: 1.4, brightness: 1.05, consonantMul: 1.15 },
+    3: { name: "Robot",  copies: 2, voiceMix: 1.2,  noiseMul: 0.8, qMul: 1.25, detuneMul: 1.15, brightness: 1.1, consonantMul: 1.2 },
+    4: { name: "Whisper",copies: 1, voiceMix: 0.6,  noiseMul: 1.4, qMul: 0.85, detuneMul: 0.8, brightness: 0.85, consonantMul: 0.7 },
   };
 
   // --- Avatar mode ---
@@ -136,6 +145,9 @@
   syllableEnabled = syllableEnabled === null ? true : syllableEnabled === "1";
   let stylePresetValue = Number(localStorage.getItem("otama_style_preset"));
   if (!Number.isFinite(stylePresetValue)) stylePresetValue = 1;
+  stylePresetValue = clamp(stylePresetValue, 0, 4);
+  let phonemeEngineValue = localStorage.getItem("otama_phoneme_engine") || "formant";
+  if (phonemeEngineValue !== "formant" && phonemeEngineValue !== "tadpole") phonemeEngineValue = "formant";
   let syllRateHz = Number(localStorage.getItem("otama_syll_rate_hz"));
   if (!Number.isFinite(syllRateHz)) syllRateHz = 7.5;
   let syllGapMs = Number(localStorage.getItem("otama_syll_gap_ms"));
@@ -169,24 +181,33 @@
 
       this.osc = null;
       this.oscGain = null;
+      this.osc2 = null;
+      this.osc2Gain = null;
 
       this.filter = null;
       this.shaper = null;
+      this.postMix = null;
+      this.dryPostGain = null;
+      this.crusher = null;
+      this.crushGain = null;
       this.dryGain = null;
       this.formantMixGain = null;
       this.formantSum = null;
-      this.formant1 = null;
-      this.formant2 = null;
-      this.formant3 = null;
-      this.formant1Gain = null;
-      this.formant2Gain = null;
-      this.formant3Gain = null;
+      this.formantBanks = [];
+      this.nasalBP = null;
+      this.nasalGain = null;
       this.syllableGateGain = null;
       this.noise = null;
       this.noiseGain = null;
       this.noiseHP = null;
       this.noiseBuf = null;
       this.voiceMixMul = 1.0;
+      this.voiceStyle = { copies: 1, detuneMul: 1.0, noiseMul: 1.0, qMul: 1.0, brightness: 1.0, consonantMul: 1.0 };
+      this.phonemeEngine = "formant";
+      this.crushBits = 6;
+      this.crushNormFreq = 0.18;
+      this.crushPhase = 0;
+      this.crushLast = 0;
 
       this.analyser = null;
 
@@ -223,6 +244,12 @@
       this.oscGain = this.ctx.createGain();
       this.oscGain.gain.value = 0.0; // gated
 
+      this.osc2 = this.ctx.createOscillator();
+      this.osc2.type = "sawtooth";
+      this.osc2.frequency.value = this.targetFreq * 1.01;
+      this.osc2Gain = this.ctx.createGain();
+      this.osc2Gain.gain.value = 0.0;
+
       this.filter = this.ctx.createBiquadFilter();
       this.filter.type = "lowpass";
       this.filter.Q.value = 0.9;
@@ -246,10 +273,13 @@
       // Connect LFO to osc.frequency
       this.lfo.connect(this.lfoGain);
       this.lfoGain.connect(this.osc.frequency);
+      this.lfoGain.connect(this.osc2.frequency);
 
       // Audio graph
       // osc -> oscGain -> filter -> (dry + formant) -> shaper -> master -> analyser -> destination
       this.osc.connect(this.oscGain);
+      this.osc2.connect(this.osc2Gain);
+      this.osc2Gain.connect(this.oscGain);
       this.oscGain.connect(this.filter);
 
       this.dryGain = this.ctx.createGain();
@@ -259,42 +289,106 @@
       this.formantMixGain = this.ctx.createGain();
       this.formantMixGain.gain.value = 0.0;
 
-      this.formant1 = this.ctx.createBiquadFilter();
-      this.formant1.type = "bandpass";
-      this.formant1.frequency.value = 800;
-      this.formant1.Q.value = 8;
-
-      this.formant2 = this.ctx.createBiquadFilter();
-      this.formant2.type = "bandpass";
-      this.formant2.frequency.value = 1400;
-      this.formant2.Q.value = 8;
-
-      this.formant3 = this.ctx.createBiquadFilter();
-      this.formant3.type = "bandpass";
-      this.formant3.frequency.value = 2900;
-      this.formant3.Q.value = 8;
-
-      this.formant1Gain = this.ctx.createGain();
-      this.formant2Gain = this.ctx.createGain();
-      this.formant3Gain = this.ctx.createGain();
-      this.formant1Gain.gain.value = 0.6;
-      this.formant2Gain.gain.value = 0.5;
-      this.formant3Gain.gain.value = 0.35;
-
       this.filter.connect(this.dryGain);
-      this.filter.connect(this.formant1);
-      this.filter.connect(this.formant2);
-      this.filter.connect(this.formant3);
-      this.formant1.connect(this.formant1Gain);
-      this.formant2.connect(this.formant2Gain);
-      this.formant3.connect(this.formant3Gain);
-      this.formant1Gain.connect(this.formantSum);
-      this.formant2Gain.connect(this.formantSum);
-      this.formant3Gain.connect(this.formantSum);
+
+      // Formant banks (for "voice copies" / grain)
+      const bankDefs = [
+        { detune: 0.0, delay: 0.0, pan: 0.0, gain: 1.0 },
+        { detune: 0.012, delay: 0.008, pan: -0.12, gain: 0.6 },
+        { detune: -0.010, delay: 0.014, pan: 0.12, gain: 0.55 },
+      ];
+      this.formantBanks = bankDefs.map((def) => {
+        const f1 = this.ctx.createBiquadFilter();
+        const f2 = this.ctx.createBiquadFilter();
+        const f3 = this.ctx.createBiquadFilter();
+        f1.type = "bandpass";
+        f2.type = "bandpass";
+        f3.type = "bandpass";
+        f1.frequency.value = 800;
+        f2.frequency.value = 1400;
+        f3.frequency.value = 2900;
+        f1.Q.value = 8;
+        f2.Q.value = 8;
+        f3.Q.value = 8;
+
+        const g1 = this.ctx.createGain();
+        const g2 = this.ctx.createGain();
+        const g3 = this.ctx.createGain();
+        g1.gain.value = 0.6;
+        g2.gain.value = 0.5;
+        g3.gain.value = 0.35;
+
+        const sum = this.ctx.createGain();
+        const bankGain = this.ctx.createGain();
+        bankGain.gain.value = def.gain;
+        const delay = this.ctx.createDelay(0.05);
+        delay.delayTime.value = def.delay;
+        const pan = this.ctx.createStereoPanner();
+        pan.pan.value = def.pan;
+
+        this.filter.connect(f1);
+        this.filter.connect(f2);
+        this.filter.connect(f3);
+        f1.connect(g1);
+        f2.connect(g2);
+        f3.connect(g3);
+        g1.connect(sum);
+        g2.connect(sum);
+        g3.connect(sum);
+        sum.connect(bankGain);
+        bankGain.connect(delay);
+        delay.connect(pan);
+        pan.connect(this.formantSum);
+
+        return { f1, f2, f3, g1, g2, g3, sum, bankGain, delay, pan, detune: def.detune, baseGain: def.gain, baseDelay: def.delay, basePan: def.pan };
+      });
+
+      // Nasal helper for "n/m" onsets (kept very subtle)
+      this.nasalBP = this.ctx.createBiquadFilter();
+      this.nasalBP.type = "bandpass";
+      this.nasalBP.frequency.value = 250;
+      this.nasalBP.Q.value = 8;
+      this.nasalGain = this.ctx.createGain();
+      this.nasalGain.gain.value = 0.0;
+      this.filter.connect(this.nasalBP);
+      this.nasalBP.connect(this.nasalGain);
+      this.nasalGain.connect(this.formantSum);
+
       this.formantSum.connect(this.formantMixGain);
 
       this.dryGain.connect(this.shaper);
       this.formantMixGain.connect(this.shaper);
+
+      // Post mix (tadpole bitcrush path)
+      this.postMix = this.ctx.createGain();
+      this.dryPostGain = this.ctx.createGain();
+      this.dryPostGain.gain.value = 1.0;
+      this.crushGain = this.ctx.createGain();
+      this.crushGain.gain.value = 0.0;
+      this.crusher = this.ctx.createScriptProcessor(512, 1, 1);
+      this.crusher.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        const output = e.outputBuffer.getChannelData(0);
+        const step = Math.pow(0.5, this.crushBits);
+        let phase = this.crushPhase;
+        let last = this.crushLast;
+        const freq = this.crushNormFreq;
+        for (let i = 0; i < input.length; i++) {
+          phase += freq;
+          if (phase >= 1.0) {
+            phase -= 1.0;
+            last = step * Math.floor(input[i] / step + 0.5);
+          }
+          output[i] = last;
+        }
+        this.crushPhase = phase;
+        this.crushLast = last;
+      };
+      this.shaper.connect(this.dryPostGain);
+      this.dryPostGain.connect(this.postMix);
+      this.shaper.connect(this.crusher);
+      this.crusher.connect(this.crushGain);
+      this.crushGain.connect(this.postMix);
 
       // Precomputed noise buffer for consonant bursts
       this.noiseBuf = this.ctx.createBuffer(1, this.ctx.sampleRate, this.ctx.sampleRate);
@@ -304,13 +398,14 @@
       this.syllableGateGain = this.ctx.createGain();
       this.syllableGateGain.gain.value = 1.0;
 
-      this.shaper.connect(this.syllableGateGain);
+      this.postMix.connect(this.syllableGateGain);
       this.syllableGateGain.connect(this.master);
       this.master.connect(this.analyser);
       this.analyser.connect(this.ctx.destination);
 
       // start sources
       this.osc.start();
+      this.osc2.start();
       this.lfo.start();
 
       // initial tone
@@ -345,12 +440,53 @@
         const base = this.syllableStyle === "off" ? 1.0 : 1.0;
         this.syllableGateGain.gain.setTargetAtTime(base, this.ctx.currentTime, 0.01);
       }
+      this.applyPhonemeEngine();
+    }
+
+    setPhonemeEngine(mode="formant") {
+      if (!this.isReady) return;
+      this.phonemeEngine = mode === "tadpole" ? "tadpole" : "formant";
+      this.applyPhonemeEngine();
+    }
+
+    applyPhonemeEngine() {
+      if (!this.isReady) return;
+      const now = this.ctx.currentTime;
+      const syllOn = this.syllableStyle !== "off";
+      const tadpoleOn = this.phonemeEngine === "tadpole" && syllOn;
+      const styleBoost = this.voiceStyle?.copies === 3 ? 1.15 : 1.0;
+      const osc2Target = tadpoleOn ? 0.14 * styleBoost : 0.0;
+      const crushTarget = tadpoleOn ? 0.35 * styleBoost : 0.0;
+      if (this.osc2Gain) this.osc2Gain.gain.setTargetAtTime(osc2Target, now, 0.02);
+      if (this.crushGain) this.crushGain.gain.setTargetAtTime(crushTarget, now, 0.02);
+      if (this.dryPostGain) this.dryPostGain.gain.setTargetAtTime(1.0, now, 0.02);
+      this.crushBits = tadpoleOn ? 6 : 8;
+      this.crushNormFreq = tadpoleOn ? 0.2 : 0.08;
     }
 
     // Voice strength controlled by style preset
     setVoiceStylePreset(preset=1) {
-      this.voiceMixMul = preset === 0 ? 0.35 : preset === 2 ? 1.25 : 1.0;
+      if (!this.isReady) return;
+      const cfg = VOICE_PRESETS[preset] || VOICE_PRESETS[1];
+      this.voiceMixMul = cfg.voiceMix;
+      this.voiceStyle = {
+        copies: cfg.copies,
+        detuneMul: cfg.detuneMul,
+        noiseMul: cfg.noiseMul,
+        qMul: cfg.qMul,
+        brightness: cfg.brightness,
+        consonantMul: cfg.consonantMul,
+      };
+      const now = this.ctx.currentTime;
+      this.formantBanks.forEach((bank, i) => {
+        const target = i < cfg.copies ? bank.baseGain : 0.0;
+        bank.bankGain.gain.cancelScheduledValues(now);
+        bank.bankGain.gain.setTargetAtTime(target, now, 0.03);
+        bank.delay.delayTime.setTargetAtTime(bank.baseDelay, now, 0.03);
+        bank.pan.pan.setTargetAtTime(bank.basePan, now, 0.03);
+      });
       if (this.syllableStyle) this.setSyllableStyle(this.syllableStyle);
+      this.applyPhonemeEngine();
     }
 
     // Syllable articulation controls (rate/gap/articulation)
@@ -377,28 +513,37 @@
       const pulseAmp = lerp(0.55, 1.0, this.syllArticulation) * (0.7 + vel * 0.3);
       const typeCfg = SYLLABLE_TYPES[type] || SYLLABLE_TYPES.na;
       const vowel = VOWEL_FORMANTS[typeCfg.vowel] || VOWEL_FORMANTS.a;
-      const glide = p.glide;
       const seg = Math.max(0.06, period);
       const mix = p.formantMix * this.voiceMixMul;
+      const style = this.voiceStyle || { detuneMul: 1.0, noiseMul: 1.0, qMul: 1.0, brightness: 1.0, consonantMul: 1.0 };
 
       this.formantMixGain.gain.cancelScheduledValues(t0);
-      this.formant1.frequency.cancelScheduledValues(t0);
-      this.formant2.frequency.cancelScheduledValues(t0);
-      this.formant3.frequency.cancelScheduledValues(t0);
-      this.formant1.Q.cancelScheduledValues(t0);
-      this.formant2.Q.cancelScheduledValues(t0);
-      this.formant3.Q.cancelScheduledValues(t0);
-      if (this.syllableGateGain) {
-        this.syllableGateGain.gain.cancelScheduledValues(t0);
-      }
+      if (this.syllableGateGain) this.syllableGateGain.gain.cancelScheduledValues(t0);
+      if (this.nasalGain) this.nasalGain.gain.cancelScheduledValues(t0);
+      this.formantBanks.forEach((bank) => {
+        bank.f1.frequency.cancelScheduledValues(t0);
+        bank.f2.frequency.cancelScheduledValues(t0);
+        bank.f3.frequency.cancelScheduledValues(t0);
+        bank.f1.Q.cancelScheduledValues(t0);
+        bank.f2.Q.cancelScheduledValues(t0);
+        bank.f3.Q.cancelScheduledValues(t0);
+        bank.g1.gain.cancelScheduledValues(t0);
+        bank.g2.gain.cancelScheduledValues(t0);
+        bank.g3.gain.cancelScheduledValues(t0);
+      });
 
       for (let i = 0; i < pulses; i++) {
         const t = t0 + i * seg;
         const hold = Math.max(0, seg - attack - release - gap);
+        const consDur = typeCfg.consDur ?? 0.04;
+        const transDur = typeCfg.transDur ?? p.glide;
+        const tTransEnd = t + consDur + transDur;
+        const bright = (typeCfg.brightness ?? 1.0) * style.brightness;
 
         // Syllable gate pulse (clear "na-na-na" gaps)
         if (this.syllableGateGain) {
-          this.syllableGateGain.gain.setValueAtTime(0.0, t);
+          const pre = pulseAmp * 0.28;
+          this.syllableGateGain.gain.setValueAtTime(pre, t);
           this.syllableGateGain.gain.linearRampToValueAtTime(pulseAmp, t + attack);
           this.syllableGateGain.gain.setValueAtTime(pulseAmp, t + attack + hold);
           this.syllableGateGain.gain.linearRampToValueAtTime(0.0, t + attack + hold + release);
@@ -409,39 +554,65 @@
         this.formantMixGain.gain.linearRampToValueAtTime(mix * p.sustain, t + attack + decay);
         this.formantMixGain.gain.linearRampToValueAtTime(0.0, t + attack + hold + release);
 
-        const nF1 = typeCfg.cons === "n" || typeCfg.cons === "m" ? 280 : 420;
-        const nF2 = typeCfg.cons === "n" || typeCfg.cons === "m" ? 900 : 1200;
-        this.formant1.frequency.setValueAtTime(nF1, t);
-        this.formant2.frequency.setValueAtTime(nF2, t);
-        this.formant3.frequency.setValueAtTime(vowel.f3, t);
-        this.formant1.frequency.linearRampToValueAtTime(vowel.f1, t + glide);
-        this.formant2.frequency.linearRampToValueAtTime(vowel.f2, t + glide);
-        this.formant3.frequency.linearRampToValueAtTime(vowel.f3, t + glide);
-        this.formant1.Q.setValueAtTime(p.q, t);
-        this.formant2.Q.setValueAtTime(p.q, t);
-        this.formant3.Q.setValueAtTime(p.q, t);
-        this.formant3Gain.gain.setValueAtTime(0.35, t);
+        // Consonant phase -> transition -> vowel (formant glide)
+        const consF1 = typeCfg.consF1 ?? 420;
+        const consF2 = typeCfg.consF2 ?? 1200;
+        const q = p.q * style.qMul;
+        this.formantBanks.forEach((bank) => {
+          const detune = 1 + bank.detune * style.detuneMul;
+          bank.f1.frequency.setValueAtTime(consF1 * detune, t);
+          bank.f2.frequency.setValueAtTime(consF2 * detune, t);
+          bank.f3.frequency.setValueAtTime(vowel.f3 * detune, t);
+          bank.f1.frequency.linearRampToValueAtTime(vowel.f1 * detune, tTransEnd);
+          bank.f2.frequency.linearRampToValueAtTime(vowel.f2 * detune, tTransEnd);
+          bank.f3.frequency.linearRampToValueAtTime(vowel.f3 * detune, tTransEnd);
+          bank.f1.Q.setValueAtTime(q, t);
+          bank.f2.Q.setValueAtTime(q, t);
+          bank.f3.Q.setValueAtTime(q, t);
+          bank.g1.gain.setValueAtTime(0.6, t);
+          bank.g2.gain.setValueAtTime(0.5, t);
+          bank.g3.gain.setValueAtTime(0.35 * bright, t);
+          if (typeCfg.consType === "nasal") {
+            bank.g3.gain.setValueAtTime(0.18 * bright, t);
+            bank.g3.gain.linearRampToValueAtTime(0.35 * bright, tTransEnd);
+          }
+        });
 
-        // Nasal onset: briefly soften high formant for n/m
-        if (typeCfg.cons === "n" || typeCfg.cons === "m") {
-          this.formant3Gain.gain.setValueAtTime(0.18, t);
-          this.formant3Gain.gain.linearRampToValueAtTime(0.35, t + 0.07);
+        // Nasal helper during consonant phase
+        if (this.nasalGain) {
+          if (typeCfg.consType === "nasal") {
+            const nasalPeak = 0.18 * style.consonantMul;
+            this.nasalGain.gain.setValueAtTime(0.0, t);
+            this.nasalGain.gain.linearRampToValueAtTime(nasalPeak, t + 0.01);
+            this.nasalGain.gain.linearRampToValueAtTime(0.0, tTransEnd);
+          } else {
+            this.nasalGain.gain.setValueAtTime(0.0, t);
+          }
         }
 
+        // Consonant transient noise
         if (typeCfg.noise) {
           const burst = this.ctx.createBufferSource();
           burst.buffer = this.noiseBuf;
+          const hp = this.ctx.createBiquadFilter();
+          hp.type = "highpass";
+          hp.frequency.value = typeCfg.noise.hp || 1800;
           const bp = this.ctx.createBiquadFilter();
           bp.type = "bandpass";
           bp.frequency.value = typeCfg.noise.c;
           bp.Q.value = typeCfg.noise.q;
           const g = this.ctx.createGain();
-          g.gain.value = typeCfg.noise.g * this.voiceMixMul;
-          burst.connect(bp);
+          const noisePeak = typeCfg.noise.g * style.noiseMul * style.consonantMul * (0.7 + vel * 0.5);
+          const nStart = t + Math.min(0.006, attack * 0.6);
+          g.gain.setValueAtTime(0.0, nStart);
+          g.gain.linearRampToValueAtTime(noisePeak, nStart + 0.004);
+          g.gain.linearRampToValueAtTime(0.0, nStart + typeCfg.noise.d);
+          burst.connect(hp);
+          hp.connect(bp);
           bp.connect(g);
           g.connect(this.formantSum);
-          burst.start(t);
-          burst.stop(t + typeCfg.noise.d);
+          burst.start(nStart);
+          burst.stop(nStart + typeCfg.noise.d + 0.03);
         }
       }
     }
@@ -460,6 +631,10 @@
       const now = this.ctx.currentTime;
       this.osc.frequency.cancelScheduledValues(now);
       this.osc.frequency.setTargetAtTime(freqHz, now, 0.012);
+      if (this.osc2) {
+        this.osc2.frequency.cancelScheduledValues(now);
+        this.osc2.frequency.setTargetAtTime(freqHz * 1.01, now, 0.012);
+      }
     }
 
     setMouthOpen(m, immediate=false) {
@@ -505,6 +680,10 @@
           this.syllableGateGain.gain.cancelScheduledValues(now);
           this.syllableGateGain.gain.setTargetAtTime(0.0, now, 0.02);
         }
+        if (this.nasalGain) {
+          this.nasalGain.gain.cancelScheduledValues(now);
+          this.nasalGain.gain.setTargetAtTime(0.0, now, 0.02);
+        }
       }
     }
 
@@ -522,6 +701,22 @@
         const now = this.ctx.currentTime;
         this.syllableGateGain.gain.cancelScheduledValues(now);
         this.syllableGateGain.gain.setTargetAtTime(0.0, now, 0.02);
+      }
+      if (this.nasalGain) {
+        const now = this.ctx.currentTime;
+        this.nasalGain.gain.cancelScheduledValues(now);
+        this.nasalGain.gain.setTargetAtTime(0.0, now, 0.02);
+      }
+      if (this.formantBanks.length) {
+        const now = this.ctx.currentTime;
+        this.formantBanks.forEach((bank) => {
+          bank.f1.frequency.cancelScheduledValues(now);
+          bank.f2.frequency.cancelScheduledValues(now);
+          bank.f3.frequency.cancelScheduledValues(now);
+          bank.g1.gain.cancelScheduledValues(now);
+          bank.g2.gain.cancelScheduledValues(now);
+          bank.g3.gain.cancelScheduledValues(now);
+        });
       }
     }
   }
@@ -759,8 +954,11 @@
     const pupilY = lerp(0, 4, t);
     const pitchHi = 1 - clamp(params.pitchT, 0, 1);
     const pupilS = lerp(1.15, 0.45, pitchHi);
-    const sakaY = lerp(7, -7, pitchHi);
-    const sakaX = lerp(-3, 3, pitchHi);
+    const sakaY = lerp(12, -12, pitchHi);
+    const sakaX = lerp(-5, 5, pitchHi);
+    const sakaEyeY = sakaY * 0.45;
+    const sakaEyeX = sakaX * 0.45;
+    const sakaEyeS = 1 + pitchHi * 0.07;
     if (eyeLeft) {
       eyeLeft.style.setProperty("--eye-y", `${eyeY}px`);
       eyeLeft.style.setProperty("--eye-s", `${eyeS}`);
@@ -769,8 +967,13 @@
       if (avatarMode === "saka") {
         eyeLeft.style.setProperty("--pupil-x", `${sakaX}px`);
         eyeLeft.style.setProperty("--pupil-y", `${sakaY}px`);
+        eyeLeft.style.setProperty("--eye-x", `${sakaEyeX}px`);
+        eyeLeft.style.setProperty("--eye-y", `${sakaEyeY}px`);
+        eyeLeft.style.setProperty("--eye-scale", `${sakaEyeS}`);
       } else {
         eyeLeft.style.setProperty("--pupil-x", "0px");
+        eyeLeft.style.setProperty("--eye-x", "0px");
+        eyeLeft.style.setProperty("--eye-scale", "1");
       }
     }
     if (eyeRight) {
@@ -781,8 +984,13 @@
       if (avatarMode === "saka") {
         eyeRight.style.setProperty("--pupil-x", `${-sakaX}px`);
         eyeRight.style.setProperty("--pupil-y", `${sakaY}px`);
+        eyeRight.style.setProperty("--eye-x", `${-sakaEyeX}px`);
+        eyeRight.style.setProperty("--eye-y", `${sakaEyeY}px`);
+        eyeRight.style.setProperty("--eye-scale", `${sakaEyeS}`);
       } else {
         eyeRight.style.setProperty("--pupil-x", "0px");
+        eyeRight.style.setProperty("--eye-x", "0px");
+        eyeRight.style.setProperty("--eye-scale", "1");
       }
     }
   }
@@ -809,15 +1017,18 @@
     if (avatarMode === "saka") return;
     const t = clamp(params.pitchT, 0, 1);
     const energy = (engine.isOn ? 1 : 0.4) * lerp(0.6, 1.0, 1 - t);
-    const baseLeft = [-14, 0, 14];
-    const baseRight = [-14, 0, 14];
+    const baseLeft = [-18, -4, 12];
+    const baseRight = [-18, -4, 12];
+    const yOffsets = [-6, 0, 6];
     whiskerLeft.forEach((w, i) => {
-      const jitter = Math.sin(now * 0.004 + i * 1.7) * 3 * energy;
+      const jitter = Math.sin(now * 0.004 + i * 1.7) * 2.5 * energy;
       w.style.setProperty("--whisker-rot", `${baseLeft[i] + jitter}deg`);
+      w.style.setProperty("--whisker-y", `${yOffsets[i]}px`);
     });
     whiskerRight.forEach((w, i) => {
-      const jitter = Math.sin(now * 0.004 + i * 1.9 + 1.4) * 3 * energy;
+      const jitter = Math.sin(now * 0.004 + i * 1.9 + 1.4) * 2.5 * energy;
       w.style.setProperty("--whisker-rot", `${baseRight[i] + jitter}deg`);
+      w.style.setProperty("--whisker-y", `${yOffsets[i]}px`);
     });
   }
 
@@ -867,6 +1078,7 @@
   function setPitchFromPointer(clientY) {
     params.pitchT = getRibbonTFromPointer(clientY);
     updateEars();
+    updateEyes(params.mouthOpen);
   }
 
   function setPitchFromFreq(freq) {
@@ -875,6 +1087,7 @@
     const t = clamp(Math.log(f / fMax) / Math.log(fMin / fMax), 0, 1);
     params.pitchT = t;
     updateEars();
+    updateEyes(params.mouthOpen);
   }
 
   function applyMouthOpen(rawOpen, immediate=false) {
@@ -905,6 +1118,7 @@
     configStemX: 0,
     configStemY: 0,
   };
+  let syllableHoldTimer = null;
 
   // --- Config mode (move stem position) ---
   const appRoot = document.querySelector(".app");
@@ -945,6 +1159,7 @@
     if (!engine.isReady) {
       engine.init().then(() => {
         engine.setVoiceStylePreset(stylePresetValue);
+        engine.setPhonemeEngine(phonemeEngineValue);
         engine.setSyllableParams(syllRateHz, syllGapMs, syllArtic);
         if (syllableStyle) {
           const style = syllableEnabled ? (syllableStyle.value || "off") : "off";
@@ -962,6 +1177,27 @@
     }
   }
 
+  function stopSyllableHold() {
+    if (syllableHoldTimer) {
+      clearInterval(syllableHoldTimer);
+      syllableHoldTimer = null;
+    }
+  }
+
+  function startSyllableHold(vel) {
+    if (!syllableEnabled || !engine.isReady) return;
+    stopSyllableHold();
+    const sc = syllableCount ? Number(syllableCount.value) : 1;
+    const st = syllableType ? syllableType.value : "na";
+    const dur = 0.9;
+    engine.triggerSyllable(engine.ctx.currentTime, vel, dur, sc, st);
+    const interval = Math.max(0.35, 0.9 * (6 / Math.max(3, syllRateHz)));
+    syllableHoldTimer = setInterval(() => {
+      if (!engine.isOn || !engine.isReady) return;
+      engine.triggerSyllable(engine.ctx.currentTime, vel, dur, sc, st);
+    }, interval * 1000);
+  }
+
   ribbon.addEventListener("pointerdown", (ev) => {
     ensureAudioFromGesture();
 
@@ -974,9 +1210,7 @@
     pointers.lastFreq = f;
     engine.setFrequency(f);
     if (syllableEnabled) {
-      const sc = syllableCount ? Number(syllableCount.value) : 1;
-      const st = syllableType ? syllableType.value : "na";
-      engine.triggerSyllable(engine.ctx.currentTime, clamp(params.volume, 0.2, 1), 0.25, sc, st);
+      startSyllableHold(clamp(params.volume, 0.2, 1));
     }
     engine.gate(true);
 
@@ -1004,6 +1238,7 @@
 
     ribbon.classList.remove("active");
     pointers.ribbonId = null;
+    stopSyllableHold();
     engine.gate(false);
     updateReadout(null);
   }
@@ -1014,6 +1249,7 @@
     if (pointers.ribbonId === ev.pointerId) {
       ribbon.classList.remove("active");
       pointers.ribbonId = null;
+      stopSyllableHold();
       engine.gate(false);
       updateReadout(null);
     }
@@ -1264,6 +1500,15 @@
     });
   }
 
+  if (phonemeEngine) {
+    phonemeEngine.value = phonemeEngineValue;
+    phonemeEngine.addEventListener("change", () => {
+      phonemeEngineValue = phonemeEngine.value === "tadpole" ? "tadpole" : "formant";
+      localStorage.setItem("otama_phoneme_engine", phonemeEngineValue);
+      if (engine.isReady) engine.setPhonemeEngine(phonemeEngineValue);
+    });
+  }
+
   if (syllableToggle) {
     syllableToggle.checked = syllableEnabled;
     syllableToggle.addEventListener("change", () => {
@@ -1330,18 +1575,19 @@
 
   // --- Style preset (visual + voice strength) ---
   function applyStylePreset(preset) {
-    const val = Math.max(0, Math.min(2, Number(preset)));
+    const val = Math.max(0, Math.min(4, Number(preset)));
     stylePresetValue = val;
-    const pattern = val === 0 ? 0.10 : val === 2 ? 0.28 : 0.18;
-    const outline = val === 0 ? 0.6 : val === 2 ? 1.1 : 0.9;
-    const highlight = val === 0 ? 0.08 : val === 2 ? 0.16 : 0.12;
-    const vignette = val === 0 ? 0.10 : val === 2 ? 0.18 : 0.14;
+    const presetCfg = VOICE_PRESETS[val] || VOICE_PRESETS[1];
+    const pattern = val === 0 ? 0.18 : val === 2 ? 0.40 : val === 3 ? 0.32 : val === 4 ? 0.22 : 0.28;
+    const outline = val === 0 ? 0.65 : val === 2 ? 1.1 : val === 3 ? 1.05 : val === 4 ? 0.75 : 0.9;
+    const highlight = val === 0 ? 0.08 : val === 2 ? 0.15 : val === 3 ? 0.12 : val === 4 ? 0.10 : 0.12;
+    const vignette = val === 0 ? 0.10 : val === 2 ? 0.18 : val === 3 ? 0.16 : val === 4 ? 0.12 : 0.14;
     document.documentElement.style.setProperty("--pattern-opacity", pattern);
     document.documentElement.style.setProperty("--outline-mul", outline);
     document.documentElement.style.setProperty("--highlight-opacity", highlight);
     document.documentElement.style.setProperty("--vignette-opacity", vignette);
     if (engine.isReady) engine.setVoiceStylePreset(val);
-    if (stylePresetVal) stylePresetVal.textContent = String(val);
+    if (stylePresetVal) stylePresetVal.textContent = presetCfg.name || String(val);
     localStorage.setItem("otama_style_preset", String(val));
   }
 

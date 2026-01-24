@@ -190,14 +190,14 @@ html, body{ height:100%; margin:0; background: radial-gradient(1200px 700px at 3
   inset:0;
   border-radius: 50%;
   /* Outer outline to avoid inner ring eating face area. */
-  box-shadow: 0 0 0 calc(var(--stroke-w) * var(--outline-mul)) var(--stroke);
+  outline: calc(var(--stroke-w) * var(--outline-mul)) solid var(--stroke);
   pointer-events:none;
   z-index: 6;
 }
 .catHead .ear{
   position:absolute;
-  width: 36%;
-  height: 48%;
+  width: 39%;
+  height: 52%;
   background: #f6a33c;
   border: var(--stroke-w) solid var(--stroke);
   border-bottom: none;
@@ -208,8 +208,8 @@ html, body{ height:100%; margin:0; background: radial-gradient(1200px 700px at 3
   transition: transform 90ms ease;
   z-index: 1;
 }
-.catHead .ear.left{ left: 7%; top: -10%; --ear-rot: -6deg; }
-.catHead .ear.right{ right: 7%; top: -10%; --ear-rot: 6deg; }
+.catHead .ear.left{ left: 6%; top: -11%; --ear-rot: -6deg; }
+.catHead .ear.right{ right: 6%; top: -11%; --ear-rot: 6deg; }
 .catHead .ear::before{
   content:"";
   position:absolute;
@@ -235,10 +235,10 @@ html, body{ height:100%; margin:0; background: radial-gradient(1200px 700px at 3
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #ffe1b4, #f5a64b 60%, #e58a34 100%);
   border: none;
-  box-shadow: inset 0 -8px 16px rgba(120,60,20,var(--vignette-opacity));
+  box-shadow: inset 0 -6px 12px rgba(120,60,20,var(--vignette-opacity));
   z-index: 2;
   pointer-events:none;
-  overflow: visible;
+  overflow: hidden;
 }
 .catHead .face::after{
   content:"";
@@ -266,7 +266,7 @@ html, body{ height:100%; margin:0; background: radial-gradient(1200px 700px at 3
     radial-gradient(24% 20% at 78% 62%, rgba(140,80,35,0.12), transparent 66%);
   opacity: var(--pattern-opacity);
   mix-blend-mode: multiply;
-  filter: blur(1.2px);
+  filter: blur(1.0px) contrast(1.08);
 }
  
 .catHead .furNoise{
@@ -274,22 +274,28 @@ html, body{ height:100%; margin:0; background: radial-gradient(1200px 700px at 3
   inset: 0;
   border-radius: 50%;
   background-image:
+    url("otama_grain_tile.png"),
     radial-gradient(circle, rgba(255,255,255,0.08) 0.6px, transparent 1px),
     radial-gradient(circle, rgba(120,70,30,0.08) 0.6px, transparent 1px);
-  background-size: 10px 10px, 12px 12px;
-  background-position: 0 0, 5px 5px;
-  opacity: 0.55;
+  background-size: 160px 160px, 10px 10px, 12px 12px;
+  background-repeat: repeat, repeat, repeat;
+  background-position: center;
+  opacity: 0.6;
   mix-blend-mode: soft-light;
-  filter: contrast(1.4);
+  filter: contrast(1.5);
   pointer-events:none;
   z-index: 1;
+  -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,0.7) 0 68%, rgba(0,0,0,1) 100%);
+  mask-image: radial-gradient(circle, rgba(0,0,0,0.7) 0 68%, rgba(0,0,0,1) 100%);
 }
 .catHead .tabby{
   position:absolute;
   inset: 0;
   border-radius: 50%;
   background:
+    url("otama_tabby_texture_v3.png"),
     url("otama_tabby_texture_v2.png"),
+    url("otama_assets_addon/otama_tabby_texture_v2.png"),
     url("cat_head_texture.png"),
     radial-gradient(34% 26% at 50% 16%, rgba(120,70,30,0.20), transparent 62%),
     radial-gradient(20% 18% at 44% 18%, rgba(120,70,30,0.18), transparent 62%),
@@ -300,13 +306,15 @@ html, body{ height:100%; margin:0; background: radial-gradient(1200px 700px at 3
     radial-gradient(26% 22% at 82% 62%, rgba(120,70,30,0.14), transparent 64%),
     linear-gradient(90deg, rgba(120,70,30,0.14), rgba(120,70,30,0.0) 55%),
     linear-gradient(-90deg, rgba(120,70,30,0.14), rgba(120,70,30,0.0) 55%);
-  background-size: 220px 220px, cover, auto, auto, auto, auto, auto, auto, auto, auto, auto;
-  background-position: center, center;
+  background-size: 240px 240px, 220px 220px, 220px 220px, cover, auto, auto, auto, auto, auto, auto, auto, auto, auto;
+  background-position: center, center, center, center;
   opacity: var(--pattern-opacity);
-  filter: blur(1.2px);
+  filter: blur(0.6px) contrast(1.15) brightness(1.04);
   mix-blend-mode: multiply;
   pointer-events:none;
   z-index: 2;
+  -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,0.65) 0 62%, rgba(0,0,0,1) 100%);
+  mask-image: radial-gradient(circle, rgba(0,0,0,0.65) 0 62%, rgba(0,0,0,1) 100%);
 }
 
 .sakaNostrils{ display:none; }
@@ -356,6 +364,7 @@ html, body{ height:100%; margin:0; background: radial-gradient(1200px 700px at 3
   border-color: #7c7a72;
   width: 24%;
   top: 36%;
+  transform: translate(var(--eye-x, 0px), var(--eye-y, 0px)) scale(var(--eye-scale, 1));
 }
 .head.mode-saka .eye.left{ left: 20%; }
 .head.mode-saka .eye.right{ right: 20%; }
@@ -513,7 +522,7 @@ html, body{ height:100%; margin:0; background: radial-gradient(1200px 700px at 3
   width: 34%;
   display:flex;
   flex-direction:column;
-  gap: 5px;
+  gap: 3px;
   z-index: 7;
   pointer-events:none;
 }
@@ -526,7 +535,7 @@ html, body{ height:100%; margin:0; background: radial-gradient(1200px 700px at 3
   /* Visibility: thin lines can vanish on mobile; add contrast + slight shadow. */
   border-radius: 999px;
   transform-origin: 100% 50%;
-  transform: rotate(var(--whisker-rot, 0deg));
+  transform: translateY(var(--whisker-y, 0px)) rotate(var(--whisker-rot, 0deg));
   opacity: 0.9;
   filter: none;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.12);
