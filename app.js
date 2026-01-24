@@ -819,7 +819,7 @@
 
       const freq = midiToFreq(note.midi);
       const vel = clamp(note.vel ?? 0.9, 0, 1);
-      const open = clamp(0.45 + vel * 0.5, 0.3, 1);
+      const open = clamp(lerp(0.25, 0.9, params.pitchT), 0.25, 1);
 
       const startDelay = Math.max(0, (when - this.engine.ctx.currentTime) * 1000);
       if (syllableEnabled) {
@@ -833,7 +833,7 @@
         this.engine.gate(true);
         setRibbonCursorFromFreq(freq);
         setPitchFromFreq(freq);
-        applyMouthOpen(open);
+        applyMouthOpen(clamp(lerp(0.25, 0.9, params.pitchT), 0.25, 1));
         updateReadout(freq);
       }, startDelay);
       this.timeouts.push(startT);
@@ -862,8 +862,7 @@
         if (t >= n.t && t <= n.t + n.d) {
           if (songNote) songNote.textContent = `MIDI ${n.midi}`;
           if (pointers.mouthId === null) {
-            const open = clamp(0.45 + clamp(n.vel ?? 0.9, 0, 1) * 0.5, 0.3, 1);
-            applyMouthOpen(open);
+            applyMouthOpen(clamp(lerp(0.25, 0.9, params.pitchT), 0.25, 1));
           }
           break;
         }
@@ -1107,7 +1106,7 @@
   function setMouthFromRibbon(clientY) {
     if (pointers.mouthId !== null) return; // mouth drag takes precedence
     const t = getRibbonTFromPointer(clientY);
-    const open = lerp(0.25, 0.9, 1 - t); // higher pitch -> more open
+    const open = lerp(0.25, 0.9, t); // higher pitch -> smaller mouth
     applyMouthOpen(open);
   }
 
