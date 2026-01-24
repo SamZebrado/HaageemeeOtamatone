@@ -39,6 +39,8 @@
             <div class="ear right"></div>
             <div class="face">
               <div class="furNoise" aria-hidden="true"></div>
+              <div class="sakaNostrils" aria-hidden="true"><span></span><span></span></div>
+              <div class="tabby" aria-hidden="true"></div>
               <div class="tuft"></div>
               <div class="sticker"></div>
               <div class="eye left"><div class="iris"><div class="pupil"></div></div></div>
@@ -159,6 +161,72 @@
               <label>眼睛颜色</label>
               <input id="eyeColor" type="color" value="#66c36a" />
               <div class="val" id="eyeColorVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>Avatar</label>
+              <button id="avatarToggleBtn" class="btn tiny" type="button">🐱</button>
+            </div>
+
+            <div class="ctrl">
+              <label>风格</label>
+              <input id="stylePreset" class="knob" type="range" min="0" max="2" step="1" />
+              <div class="val" id="stylePresetVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>Na 风格</label>
+              <select id="syllableStyle" class="select small">
+                <option value="off">Off</option>
+                <option value="soft">Soft</option>
+                <option value="cute">Cute</option>
+                <option value="robot">Robot</option>
+                <option value="opera">Opera</option>
+              </select>
+            </div>
+
+            <div class="ctrl">
+              <label>音节开关</label>
+              <label class="toggle">
+                <input id="syllableToggle" type="checkbox" />
+                <span>On</span>
+              </label>
+            </div>
+
+            <div class="ctrl">
+              <label>音节类型</label>
+              <select id="syllableType" class="select small">
+                <option value="na">Na</option>
+                <option value="da">Da</option>
+                <option value="sa">Sa</option>
+                <option value="shi">Shi</option>
+                <option value="ma">Ma</option>
+                <option value="la">La</option>
+              </select>
+            </div>
+
+            <div class="ctrl">
+              <label>音节个数</label>
+              <input id="syllableCount" type="range" min="1" max="4" step="1" />
+              <div class="val" id="syllableCountVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>Rate (Hz)</label>
+              <input id="syllableRate" class="knob" type="range" min="3" max="12" step="0.1" />
+              <div class="val" id="syllableRateVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>Gap (ms)</label>
+              <input id="syllableGap" class="knob" type="range" min="0" max="60" step="1" />
+              <div class="val" id="syllableGapVal"></div>
+            </div>
+
+            <div class="ctrl">
+              <label>Articulation</label>
+              <input id="syllableArtic" class="knob" type="range" min="0" max="1" step="0.01" />
+              <div class="val" id="syllableArticVal"></div>
             </div>
 
             <div class="ctrl">

@@ -18,6 +18,7 @@
   const btnReload = $("#btnReload");
   const btnFullscreen = $("#btnFullscreen");
   const btnAuto = $("#btnAuto");
+  const avatarToggleBtn = $("#avatarToggleBtn");
   const ribbon = $("#ribbon");
   const ribbonCursor = $("#ribbonCursor");
   const stem = document.querySelector(".stem");
@@ -47,6 +48,14 @@
   const songSelect = $("#songSelect");
   const loop = $("#loop");
   const speed = $("#speed");
+  const syllableType = $("#syllableType");
+  const syllableCount = $("#syllableCount");
+  const syllableStyle = $("#syllableStyle");
+  const syllableToggle = $("#syllableToggle");
+  const stylePreset = $("#stylePreset");
+  const syllableRate = $("#syllableRate");
+  const syllableGap = $("#syllableGap");
+  const syllableArtic = $("#syllableArtic");
 
   const volVal = $("#volVal");
   const vibDepthVal = $("#vibDepthVal");
@@ -59,6 +68,11 @@
   const speedVal = $("#speedVal");
   const songProgress = $("#songProgress");
   const songNote = $("#songNote");
+  const syllableCountVal = $("#syllableCountVal");
+  const stylePresetVal = $("#stylePresetVal");
+  const syllableRateVal = $("#syllableRateVal");
+  const syllableGapVal = $("#syllableGapVal");
+  const syllableArticVal = $("#syllableArticVal");
 
   const segBtns = Array.from(document.querySelectorAll(".segBtn"));
   const fxBtns = Array.from(document.querySelectorAll(".fxBtn"));
@@ -87,6 +101,66 @@
   const fmt = (x, digits=2) => Number(x).toFixed(digits);
   const midiToFreq = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
+  const SYLLABLE_STYLES = {
+    off:   { name: "off",   dryMix: 1.0,  formantMix: 0.0, sustain: 0.0, aF1: 800, aF2: 1400, nF1: 300, nF2: 1000, q: 8, glide: 0.04, noiseGain: 0.0 },
+    soft:  { name: "soft",  dryMix: 0.9,  formantMix: 0.45, sustain: 0.65, aF1: 650, aF2: 1200, nF1: 300, nF2: 1000, q: 6, glide: 0.05, noiseGain: 0.0 },
+    cute:  { name: "cute",  dryMix: 0.6,  formantMix: 0.8,  sustain: 0.75, aF1: 750, aF2: 1550, nF1: 320, nF2: 1050, q: 8, glide: 0.04, noiseGain: 0.015 },
+    robot: { name: "robot", dryMix: 0.5,  formantMix: 0.9,  sustain: 0.7,  aF1: 500, aF2: 1100, nF1: 250, nF2: 900,  q: 12,glide: 0.025,noiseGain: 0.03 },
+    opera: { name: "opera", dryMix: 0.75, formantMix: 0.7,  sustain: 0.7,  aF1: 900, aF2: 1400, nF1: 320, nF2: 1000, q: 5, glide: 0.06, noiseGain: 0.0 },
+  };
+
+  const VOWEL_FORMANTS = {
+    a: { f1: 800, f2: 1150, f3: 2900 },
+    i: { f1: 300, f2: 2200, f3: 3000 },
+    u: { f1: 350, f2: 600,  f3: 2700 },
+    o: { f1: 450, f2: 800,  f3: 2830 },
+    e: { f1: 400, f2: 2000, f3: 2600 },
+  };
+
+  const SYLLABLE_TYPES = {
+    na:  { vowel: "a", cons: "n",  noise: null },
+    da:  { vowel: "a", cons: "d",  noise: { c: 2200, q: 8, g: 0.07, d: 0.03 } },
+    sa:  { vowel: "a", cons: "s",  noise: { c: 7200, q: 8, g: 0.08, d: 0.06 } },
+    shi: { vowel: "i", cons: "sh", noise: { c: 3800, q: 7, g: 0.07, d: 0.07 } },
+    ma:  { vowel: "a", cons: "m",  noise: null },
+    la:  { vowel: "e", cons: "l",  noise: null },
+  };
+
+  // --- Avatar mode ---
+  let avatarMode = "cat";
+  const storedAvatar = localStorage.getItem("otama_avatar_mode");
+  if (storedAvatar === "cat" || storedAvatar === "saka") avatarMode = storedAvatar;
+  let syllableStyleValue = localStorage.getItem("otama_syllable_style") || "";
+  let syllableStyleUserSet = !!syllableStyleValue;
+  let syllableEnabled = localStorage.getItem("otama_syllable_on");
+  syllableEnabled = syllableEnabled === null ? true : syllableEnabled === "1";
+  let stylePresetValue = Number(localStorage.getItem("otama_style_preset"));
+  if (!Number.isFinite(stylePresetValue)) stylePresetValue = 1;
+  let syllRateHz = Number(localStorage.getItem("otama_syll_rate_hz"));
+  if (!Number.isFinite(syllRateHz)) syllRateHz = 7.5;
+  let syllGapMs = Number(localStorage.getItem("otama_syll_gap_ms"));
+  if (!Number.isFinite(syllGapMs)) syllGapMs = 25;
+  let syllArtic = Number(localStorage.getItem("otama_syll_artic"));
+  if (!Number.isFinite(syllArtic)) syllArtic = 0.75;
+
+  function applyAvatarMode() {
+    if (head) {
+      head.classList.toggle("mode-cat", avatarMode === "cat");
+      head.classList.toggle("mode-saka", avatarMode === "saka");
+    }
+    if (avatarToggleBtn) {
+      avatarToggleBtn.textContent = avatarMode === "cat" ? "🐱" : "🐟";
+    }
+    if (!syllableStyleUserSet) {
+      syllableStyleValue = avatarMode === "saka" ? "cute" : "off";
+      if (syllableStyle) syllableStyle.value = syllableStyleValue;
+      if (engine.isReady) engine.setSyllableStyle(syllableEnabled ? syllableStyleValue : "off");
+    }
+    updateMouthPath();
+    updateEars();
+    updateWhiskers(performance.now());
+  }
+
   // --- Audio Engine (Web Audio API) ---
   class Engine {
     constructor() {
@@ -98,6 +172,21 @@
 
       this.filter = null;
       this.shaper = null;
+      this.dryGain = null;
+      this.formantMixGain = null;
+      this.formantSum = null;
+      this.formant1 = null;
+      this.formant2 = null;
+      this.formant3 = null;
+      this.formant1Gain = null;
+      this.formant2Gain = null;
+      this.formant3Gain = null;
+      this.syllableGateGain = null;
+      this.noise = null;
+      this.noiseGain = null;
+      this.noiseHP = null;
+      this.noiseBuf = null;
+      this.voiceMixMul = 1.0;
 
       this.analyser = null;
 
@@ -106,6 +195,11 @@
 
       this.isReady = false;
       this.isOn = false;
+      this.syllableStyle = "off";
+      this.syllableParams = null;
+      this.syllRateHz = 7.5;
+      this.syllGapMs = 25;
+      this.syllArticulation = 0.75;
 
       this.targetFreq = 220;
       this.baseFreq = 220;
@@ -154,11 +248,64 @@
       this.lfoGain.connect(this.osc.frequency);
 
       // Audio graph
-      // osc -> oscGain -> filter -> shaper -> master -> analyser -> destination
+      // osc -> oscGain -> filter -> (dry + formant) -> shaper -> master -> analyser -> destination
       this.osc.connect(this.oscGain);
       this.oscGain.connect(this.filter);
-      this.filter.connect(this.shaper);
-      this.shaper.connect(this.master);
+
+      this.dryGain = this.ctx.createGain();
+      this.dryGain.gain.value = 1.0;
+
+      this.formantSum = this.ctx.createGain();
+      this.formantMixGain = this.ctx.createGain();
+      this.formantMixGain.gain.value = 0.0;
+
+      this.formant1 = this.ctx.createBiquadFilter();
+      this.formant1.type = "bandpass";
+      this.formant1.frequency.value = 800;
+      this.formant1.Q.value = 8;
+
+      this.formant2 = this.ctx.createBiquadFilter();
+      this.formant2.type = "bandpass";
+      this.formant2.frequency.value = 1400;
+      this.formant2.Q.value = 8;
+
+      this.formant3 = this.ctx.createBiquadFilter();
+      this.formant3.type = "bandpass";
+      this.formant3.frequency.value = 2900;
+      this.formant3.Q.value = 8;
+
+      this.formant1Gain = this.ctx.createGain();
+      this.formant2Gain = this.ctx.createGain();
+      this.formant3Gain = this.ctx.createGain();
+      this.formant1Gain.gain.value = 0.6;
+      this.formant2Gain.gain.value = 0.5;
+      this.formant3Gain.gain.value = 0.35;
+
+      this.filter.connect(this.dryGain);
+      this.filter.connect(this.formant1);
+      this.filter.connect(this.formant2);
+      this.filter.connect(this.formant3);
+      this.formant1.connect(this.formant1Gain);
+      this.formant2.connect(this.formant2Gain);
+      this.formant3.connect(this.formant3Gain);
+      this.formant1Gain.connect(this.formantSum);
+      this.formant2Gain.connect(this.formantSum);
+      this.formant3Gain.connect(this.formantSum);
+      this.formantSum.connect(this.formantMixGain);
+
+      this.dryGain.connect(this.shaper);
+      this.formantMixGain.connect(this.shaper);
+
+      // Precomputed noise buffer for consonant bursts
+      this.noiseBuf = this.ctx.createBuffer(1, this.ctx.sampleRate, this.ctx.sampleRate);
+      const ndata = this.noiseBuf.getChannelData(0);
+      for (let i = 0; i < ndata.length; i++) ndata[i] = Math.random() * 2 - 1;
+
+      this.syllableGateGain = this.ctx.createGain();
+      this.syllableGateGain.gain.value = 1.0;
+
+      this.shaper.connect(this.syllableGateGain);
+      this.syllableGateGain.connect(this.master);
       this.master.connect(this.analyser);
       this.analyser.connect(this.ctx.destination);
 
@@ -168,6 +315,7 @@
 
       // initial tone
       this.setMouthOpen(params.mouthOpen, true);
+      this.setSyllableStyle("off");
 
       this.isReady = true;
       await this.ctx.resume();
@@ -181,6 +329,121 @@
     setDrive(d) {
       if (!this.isReady) return;
       this.shaper.curve = makeDriveCurve(d);
+    }
+
+    // Syllable styles (formant mix + n->a glide)
+    setSyllableStyle(styleName) {
+      if (!this.isReady) return;
+      this.syllableStyle = styleName;
+      this.syllableParams = SYLLABLE_STYLES[styleName] || SYLLABLE_STYLES.off;
+      const { dryMix, formantMix } = this.syllableParams;
+      const voice = formantMix * this.voiceMixMul;
+      const dry = dryMix * (0.9 + 0.1 * (1 - this.voiceMixMul));
+      this.dryGain.gain.setTargetAtTime(dry, this.ctx.currentTime, 0.02);
+      this.formantMixGain.gain.setTargetAtTime(voice, this.ctx.currentTime, 0.02);
+      if (this.syllableGateGain) {
+        const base = this.syllableStyle === "off" ? 1.0 : 1.0;
+        this.syllableGateGain.gain.setTargetAtTime(base, this.ctx.currentTime, 0.01);
+      }
+    }
+
+    // Voice strength controlled by style preset
+    setVoiceStylePreset(preset=1) {
+      this.voiceMixMul = preset === 0 ? 0.35 : preset === 2 ? 1.25 : 1.0;
+      if (this.syllableStyle) this.setSyllableStyle(this.syllableStyle);
+    }
+
+    // Syllable articulation controls (rate/gap/articulation)
+    setSyllableParams(rateHz, gapMs, artic) {
+      this.syllRateHz = clamp(rateHz, 3, 12);
+      this.syllGapMs = clamp(gapMs, 0, 60);
+      this.syllArticulation = clamp(artic, 0, 1);
+    }
+
+    triggerSyllable(when, vel=0.9, dur=0.25, count=1, type="na") {
+      if (!this.isReady) return;
+      const p = this.syllableParams || SYLLABLE_STYLES.off;
+      if (!p || p.name === "off") return;
+
+      const now = this.ctx.currentTime;
+      const t0 = Math.max(when, now);
+      const attack = lerp(0.012, 0.004, this.syllArticulation);
+      const decay = 0.08;
+      const release = lerp(0.03, 0.01, this.syllArticulation);
+      const gap = Math.max(0.015, this.syllGapMs / 1000);
+      const period = 1 / Math.max(3, this.syllRateHz);
+      const maxByRate = Math.max(1, Math.floor(dur / period) + 1);
+      const pulses = Math.max(1, Math.min(Math.floor(count) || 1, maxByRate));
+      const pulseAmp = lerp(0.55, 1.0, this.syllArticulation) * (0.7 + vel * 0.3);
+      const typeCfg = SYLLABLE_TYPES[type] || SYLLABLE_TYPES.na;
+      const vowel = VOWEL_FORMANTS[typeCfg.vowel] || VOWEL_FORMANTS.a;
+      const glide = p.glide;
+      const seg = Math.max(0.06, period);
+      const mix = p.formantMix * this.voiceMixMul;
+
+      this.formantMixGain.gain.cancelScheduledValues(t0);
+      this.formant1.frequency.cancelScheduledValues(t0);
+      this.formant2.frequency.cancelScheduledValues(t0);
+      this.formant3.frequency.cancelScheduledValues(t0);
+      this.formant1.Q.cancelScheduledValues(t0);
+      this.formant2.Q.cancelScheduledValues(t0);
+      this.formant3.Q.cancelScheduledValues(t0);
+      if (this.syllableGateGain) {
+        this.syllableGateGain.gain.cancelScheduledValues(t0);
+      }
+
+      for (let i = 0; i < pulses; i++) {
+        const t = t0 + i * seg;
+        const hold = Math.max(0, seg - attack - release - gap);
+
+        // Syllable gate pulse (clear "na-na-na" gaps)
+        if (this.syllableGateGain) {
+          this.syllableGateGain.gain.setValueAtTime(0.0, t);
+          this.syllableGateGain.gain.linearRampToValueAtTime(pulseAmp, t + attack);
+          this.syllableGateGain.gain.setValueAtTime(pulseAmp, t + attack + hold);
+          this.syllableGateGain.gain.linearRampToValueAtTime(0.0, t + attack + hold + release);
+        }
+
+        this.formantMixGain.gain.setValueAtTime(0.0, t);
+        this.formantMixGain.gain.linearRampToValueAtTime(mix * (0.6 + vel * 0.4), t + attack);
+        this.formantMixGain.gain.linearRampToValueAtTime(mix * p.sustain, t + attack + decay);
+        this.formantMixGain.gain.linearRampToValueAtTime(0.0, t + attack + hold + release);
+
+        const nF1 = typeCfg.cons === "n" || typeCfg.cons === "m" ? 280 : 420;
+        const nF2 = typeCfg.cons === "n" || typeCfg.cons === "m" ? 900 : 1200;
+        this.formant1.frequency.setValueAtTime(nF1, t);
+        this.formant2.frequency.setValueAtTime(nF2, t);
+        this.formant3.frequency.setValueAtTime(vowel.f3, t);
+        this.formant1.frequency.linearRampToValueAtTime(vowel.f1, t + glide);
+        this.formant2.frequency.linearRampToValueAtTime(vowel.f2, t + glide);
+        this.formant3.frequency.linearRampToValueAtTime(vowel.f3, t + glide);
+        this.formant1.Q.setValueAtTime(p.q, t);
+        this.formant2.Q.setValueAtTime(p.q, t);
+        this.formant3.Q.setValueAtTime(p.q, t);
+        this.formant3Gain.gain.setValueAtTime(0.35, t);
+
+        // Nasal onset: briefly soften high formant for n/m
+        if (typeCfg.cons === "n" || typeCfg.cons === "m") {
+          this.formant3Gain.gain.setValueAtTime(0.18, t);
+          this.formant3Gain.gain.linearRampToValueAtTime(0.35, t + 0.07);
+        }
+
+        if (typeCfg.noise) {
+          const burst = this.ctx.createBufferSource();
+          burst.buffer = this.noiseBuf;
+          const bp = this.ctx.createBiquadFilter();
+          bp.type = "bandpass";
+          bp.frequency.value = typeCfg.noise.c;
+          bp.Q.value = typeCfg.noise.q;
+          const g = this.ctx.createGain();
+          g.gain.value = typeCfg.noise.g * this.voiceMixMul;
+          burst.connect(bp);
+          bp.connect(g);
+          g.connect(this.formantSum);
+          burst.start(t);
+          burst.stop(t + typeCfg.noise.d);
+        }
+      }
     }
 
     setVibrato(depthHz, rateHz) {
@@ -234,6 +497,14 @@
         // release
         this.oscGain.gain.cancelScheduledValues(now);
         this.oscGain.gain.setTargetAtTime(0.0, now, 0.02);
+        if (this.formantMixGain) {
+          this.formantMixGain.gain.cancelScheduledValues(now);
+          this.formantMixGain.gain.setTargetAtTime(0.0, now, 0.02);
+        }
+        if (this.syllableGateGain) {
+          this.syllableGateGain.gain.cancelScheduledValues(now);
+          this.syllableGateGain.gain.setTargetAtTime(0.0, now, 0.02);
+        }
       }
     }
 
@@ -242,6 +513,16 @@
       this.gate(false);
       this.setMouthOpen(0.35);
       this.setFrequency(220);
+      if (this.formantMixGain) {
+        const now = this.ctx.currentTime;
+        this.formantMixGain.gain.cancelScheduledValues(now);
+        this.formantMixGain.gain.setTargetAtTime(0.0, now, 0.02);
+      }
+      if (this.syllableGateGain) {
+        const now = this.ctx.currentTime;
+        this.syllableGateGain.gain.cancelScheduledValues(now);
+        this.syllableGateGain.gain.setTargetAtTime(0.0, now, 0.02);
+      }
     }
   }
 
@@ -270,6 +551,9 @@
     play(songId, speed=1, loop=false) {
       if (!this.engine.isReady) {
         return this.engine.init().then(() => this.play(songId, speed, loop));
+      }
+      if (syllableStyle && this.engine.isReady) {
+        this.engine.setSyllableStyle(syllableEnabled ? (syllableStyle.value || "off") : "off");
       }
 
       const data = this.loadSongs();
@@ -341,6 +625,11 @@
       const open = clamp(0.45 + vel * 0.5, 0.3, 1);
 
       const startDelay = Math.max(0, (when - this.engine.ctx.currentTime) * 1000);
+      if (syllableEnabled) {
+        const sc = syllableCount ? Number(syllableCount.value) : 1;
+        const st = syllableType ? syllableType.value : "na";
+        this.engine.triggerSyllable(when, vel, dur, sc, st);
+      }
       const startT = setTimeout(() => {
         if (!this.isPlaying) return;
         this.engine.setFrequency(freq);
@@ -403,6 +692,26 @@
   function updateMouthPath() {
     const open = params.mouthOpen; // 0..1
 
+    if (avatarMode === "saka") {
+      const scale = 5.12; // map 0..100 to viewBox 0..512
+      const ySplit = 52;
+      const yTop = ySplit + 1;
+      const yTip = yTop + lerp(10, 22, open);
+      const xL = 42;
+      const xR = 58;
+      const d = [
+        `M ${xL * scale} ${yTop * scale}`,
+        `L ${xR * scale} ${yTop * scale}`,
+        `L ${50 * scale} ${yTip * scale}`,
+        "Z",
+      ].join(" ");
+      mouthUpper.setAttribute("d", d);
+      mouthUpper.style.fill = "rgba(15,10,8,0.95)";
+      mouthLower.setAttribute("d", "");
+      mouthLower.style.fill = "transparent";
+      return;
+    }
+
     // mouth center
     const cx = 256;
     const cy = 338;
@@ -450,21 +759,36 @@
     const pupilY = lerp(0, 4, t);
     const pitchHi = 1 - clamp(params.pitchT, 0, 1);
     const pupilS = lerp(1.15, 0.45, pitchHi);
+    const sakaY = lerp(7, -7, pitchHi);
+    const sakaX = lerp(-3, 3, pitchHi);
     if (eyeLeft) {
       eyeLeft.style.setProperty("--eye-y", `${eyeY}px`);
       eyeLeft.style.setProperty("--eye-s", `${eyeS}`);
-      eyeLeft.style.setProperty("--pupil-y", `${pupilY}px`);
+      if (avatarMode !== "saka") eyeLeft.style.setProperty("--pupil-y", `${pupilY}px`);
       eyeLeft.style.setProperty("--pupil-s", `${pupilS}`);
+      if (avatarMode === "saka") {
+        eyeLeft.style.setProperty("--pupil-x", `${sakaX}px`);
+        eyeLeft.style.setProperty("--pupil-y", `${sakaY}px`);
+      } else {
+        eyeLeft.style.setProperty("--pupil-x", "0px");
+      }
     }
     if (eyeRight) {
       eyeRight.style.setProperty("--eye-y", `${eyeY}px`);
       eyeRight.style.setProperty("--eye-s", `${eyeS}`);
-      eyeRight.style.setProperty("--pupil-y", `${pupilY}px`);
+      if (avatarMode !== "saka") eyeRight.style.setProperty("--pupil-y", `${pupilY}px`);
       eyeRight.style.setProperty("--pupil-s", `${pupilS}`);
+      if (avatarMode === "saka") {
+        eyeRight.style.setProperty("--pupil-x", `${-sakaX}px`);
+        eyeRight.style.setProperty("--pupil-y", `${sakaY}px`);
+      } else {
+        eyeRight.style.setProperty("--pupil-x", "0px");
+      }
     }
   }
 
   function updateEars() {
+    if (avatarMode === "saka") return;
     const t = clamp(params.pitchT, 0, 1);
     const lift = lerp(0, -10, 1 - t);
     const stretch = lerp(1.0, 1.45, 1 - t);
@@ -482,10 +806,11 @@
   }
 
   function updateWhiskers(now) {
+    if (avatarMode === "saka") return;
     const t = clamp(params.pitchT, 0, 1);
     const energy = (engine.isOn ? 1 : 0.4) * lerp(0.6, 1.0, 1 - t);
-    const baseLeft = [-12, 0, 12];
-    const baseRight = [12, 0, -12];
+    const baseLeft = [-14, 0, 14];
+    const baseRight = [-14, 0, 14];
     whiskerLeft.forEach((w, i) => {
       const jitter = Math.sin(now * 0.004 + i * 1.7) * 3 * energy;
       w.style.setProperty("--whisker-rot", `${baseLeft[i] + jitter}deg`);
@@ -618,7 +943,16 @@
   function ensureAudioFromGesture() {
     // called inside a user gesture (pointer down)
     if (!engine.isReady) {
-      engine.init().catch((err) => {
+      engine.init().then(() => {
+        engine.setVoiceStylePreset(stylePresetValue);
+        engine.setSyllableParams(syllRateHz, syllGapMs, syllArtic);
+        if (syllableStyle) {
+          const style = syllableEnabled ? (syllableStyle.value || "off") : "off";
+          engine.setSyllableStyle(style);
+        } else if (!syllableStyleUserSet) {
+          engine.setSyllableStyle(avatarMode === "saka" ? "cute" : "off");
+        }
+      }).catch((err) => {
         console.error(err);
       });
       btnPower.textContent = "声音已启用";
@@ -639,6 +973,11 @@
     const f = getRibbonFreqFromPointer(ev.clientY);
     pointers.lastFreq = f;
     engine.setFrequency(f);
+    if (syllableEnabled) {
+      const sc = syllableCount ? Number(syllableCount.value) : 1;
+      const st = syllableType ? syllableType.value : "na";
+      engine.triggerSyllable(engine.ctx.currentTime, clamp(params.volume, 0.2, 1), 0.25, sc, st);
+    }
     engine.gate(true);
 
     setRibbonCursor(ev.clientY);
@@ -768,6 +1107,9 @@
     await engine.init();
     btnPower.textContent = "声音已启用";
     btnPower.classList.add("active");
+    engine.setVoiceStylePreset(stylePresetValue);
+    engine.setSyllableParams(syllRateHz, syllGapMs, syllArtic);
+    if (syllableStyle) engine.setSyllableStyle(syllableEnabled ? (syllableStyle.value || "off") : "off");
   });
 
   btnStop.addEventListener("click", () => {
@@ -809,6 +1151,14 @@
     url.searchParams.set("v", String(Date.now()));
     window.location.replace(url.toString());
   });
+
+  if (avatarToggleBtn) {
+    avatarToggleBtn.addEventListener("click", () => {
+      avatarMode = avatarMode === "cat" ? "saka" : "cat";
+      localStorage.setItem("otama_avatar_mode", avatarMode);
+      applyAvatarMode();
+    });
+  }
 
   function isFullscreen() {
     return !!document.fullscreenElement;
@@ -898,6 +1248,108 @@
     params.range = v;
     rangeVal.textContent = fmt(v, 2);
   });
+
+  // --- Syllable style UI ---
+  if (syllableStyle) {
+    if (!syllableStyleUserSet) {
+      syllableStyleValue = avatarMode === "saka" ? "cute" : "off";
+    }
+    syllableStyle.value = syllableStyleValue || "off";
+    if (engine.isReady) engine.setSyllableStyle(syllableStyle.value);
+    syllableStyle.addEventListener("change", () => {
+      syllableStyleUserSet = true;
+      syllableStyleValue = syllableStyle.value;
+      localStorage.setItem("otama_syllable_style", syllableStyleValue);
+      if (engine.isReady && syllableEnabled) engine.setSyllableStyle(syllableStyleValue);
+    });
+  }
+
+  if (syllableToggle) {
+    syllableToggle.checked = syllableEnabled;
+    syllableToggle.addEventListener("change", () => {
+      syllableEnabled = syllableToggle.checked;
+      localStorage.setItem("otama_syllable_on", syllableEnabled ? "1" : "0");
+      if (engine.isReady) {
+        engine.setSyllableStyle(syllableEnabled ? (syllableStyle?.value || "off") : "off");
+      }
+    });
+  }
+
+  if (syllableType) {
+    const savedType = localStorage.getItem("otama_syllable_type");
+    if (savedType && SYLLABLE_TYPES[savedType]) syllableType.value = savedType;
+    syllableType.addEventListener("change", () => {
+      localStorage.setItem("otama_syllable_type", syllableType.value);
+    });
+  }
+
+  if (syllableCount) {
+    syllableCount.value = syllableCount.value || "1";
+    const updateCountVal = () => {
+      if (syllableCountVal) syllableCountVal.textContent = `${syllableCount.value}x`;
+    };
+    updateCountVal();
+    syllableCount.addEventListener("input", updateCountVal);
+  }
+
+  if (syllableRate) {
+    syllableRate.value = String(syllRateHz);
+    const updateRate = () => {
+      syllRateHz = Number(syllableRate.value);
+      if (syllableRateVal) syllableRateVal.textContent = `${syllRateHz.toFixed(1)} Hz`;
+      localStorage.setItem("otama_syll_rate_hz", String(syllRateHz));
+      if (engine.isReady) engine.setSyllableParams(syllRateHz, syllGapMs, syllArtic);
+    };
+    syllableRate.addEventListener("input", updateRate);
+    updateRate();
+  }
+
+  if (syllableGap) {
+    syllableGap.value = String(syllGapMs);
+    const updateGap = () => {
+      syllGapMs = Number(syllableGap.value);
+      if (syllableGapVal) syllableGapVal.textContent = `${syllGapMs} ms`;
+      localStorage.setItem("otama_syll_gap_ms", String(syllGapMs));
+      if (engine.isReady) engine.setSyllableParams(syllRateHz, syllGapMs, syllArtic);
+    };
+    syllableGap.addEventListener("input", updateGap);
+    updateGap();
+  }
+
+  if (syllableArtic) {
+    syllableArtic.value = String(syllArtic);
+    const updateArtic = () => {
+      syllArtic = Number(syllableArtic.value);
+      if (syllableArticVal) syllableArticVal.textContent = syllArtic.toFixed(2);
+      localStorage.setItem("otama_syll_artic", String(syllArtic));
+      if (engine.isReady) engine.setSyllableParams(syllRateHz, syllGapMs, syllArtic);
+    };
+    syllableArtic.addEventListener("input", updateArtic);
+    updateArtic();
+  }
+
+  // --- Style preset (visual + voice strength) ---
+  function applyStylePreset(preset) {
+    const val = Math.max(0, Math.min(2, Number(preset)));
+    stylePresetValue = val;
+    const pattern = val === 0 ? 0.10 : val === 2 ? 0.28 : 0.18;
+    const outline = val === 0 ? 0.6 : val === 2 ? 1.1 : 0.9;
+    const highlight = val === 0 ? 0.08 : val === 2 ? 0.16 : 0.12;
+    const vignette = val === 0 ? 0.10 : val === 2 ? 0.18 : 0.14;
+    document.documentElement.style.setProperty("--pattern-opacity", pattern);
+    document.documentElement.style.setProperty("--outline-mul", outline);
+    document.documentElement.style.setProperty("--highlight-opacity", highlight);
+    document.documentElement.style.setProperty("--vignette-opacity", vignette);
+    if (engine.isReady) engine.setVoiceStylePreset(val);
+    if (stylePresetVal) stylePresetVal.textContent = String(val);
+    localStorage.setItem("otama_style_preset", String(val));
+  }
+
+  if (stylePreset) {
+    stylePreset.value = String(stylePresetValue);
+    stylePreset.addEventListener("input", () => applyStylePreset(stylePreset.value));
+    applyStylePreset(stylePresetValue);
+  }
 
   // --- Auto play UI ---
   if (speed) {
@@ -1192,6 +1644,7 @@
   syncUIFromParams();
   applyMouthOpen(params.mouthRaw, true);
   updateEars();
+  applyAvatarMode();
   loadSongOptions();
   if (speedVal && speed) speedVal.textContent = `${fmt(Number(speed.value || 1), 2)}x`;
   if (sessionStorage.getItem("otama_fs_restore") === "1") {
