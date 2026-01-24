@@ -46,6 +46,11 @@ Open on the same Wi‑Fi:
 ```
 http://<你的电脑局域网IP>:8000
 ```
+或者使用脚本（会自动显示本机局域网 IP）：
+Or use the script (prints your local IP):
+```
+./serve_local.sh
+```
 
 ## 文件结构
 ## File Structure
