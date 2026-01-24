@@ -296,7 +296,6 @@ html, body{ height:100%; margin:0; background: radial-gradient(1200px 700px at 3
     url("otama_tabby_texture_v3.png"),
     url("otama_tabby_texture_v2.png"),
     url("otama_assets_addon/otama_tabby_texture_v2.png"),
-    url("cat_head_texture.png"),
     radial-gradient(34% 26% at 50% 16%, rgba(120,70,30,0.20), transparent 62%),
     radial-gradient(20% 18% at 44% 18%, rgba(120,70,30,0.18), transparent 62%),
     radial-gradient(20% 18% at 56% 18%, rgba(120,70,30,0.18), transparent 62%),
@@ -306,8 +305,8 @@ html, body{ height:100%; margin:0; background: radial-gradient(1200px 700px at 3
     radial-gradient(26% 22% at 82% 62%, rgba(120,70,30,0.14), transparent 64%),
     linear-gradient(90deg, rgba(120,70,30,0.14), rgba(120,70,30,0.0) 55%),
     linear-gradient(-90deg, rgba(120,70,30,0.14), rgba(120,70,30,0.0) 55%);
-  background-size: 240px 240px, 220px 220px, 220px 220px, cover, auto, auto, auto, auto, auto, auto, auto, auto, auto;
-  background-position: center, center, center, center;
+  background-size: 240px 240px, 220px 220px, 220px 220px, auto, auto, auto, auto, auto, auto, auto, auto, auto;
+  background-position: center, center, center;
   opacity: var(--pattern-opacity);
   filter: blur(0.6px) contrast(1.15) brightness(1.04);
   mix-blend-mode: multiply;
@@ -360,7 +359,7 @@ html, body{ height:100%; margin:0; background: radial-gradient(1200px 700px at 3
   border-radius: 999px;
 }
 .head.mode-saka .eye{
-  background: #ffffff;
+  background: var(--fish-eye, #ffffff);
   border-color: #7c7a72;
   width: 24%;
   top: 36%;
@@ -370,7 +369,7 @@ html, body{ height:100%; margin:0; background: radial-gradient(1200px 700px at 3
 .head.mode-saka .eye.right{ right: 20%; }
 .head.mode-saka .eye .iris{
   inset: 30%;
-  background: #111;
+  background: var(--fish-iris, #111);
   box-shadow: none;
   transform: translate(var(--pupil-x, 0px), var(--pupil-y, 0px));
 }

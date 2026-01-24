@@ -97,8 +97,23 @@ Or use the script (prints your local IP):
 - Effects are throttled on lower-performance devices.
 - 自动弹奏曲库来自 `otamatone_pd_songpack/songs` 并已内联。
 - Auto-play songs are sourced from `otamatone_pd_songpack/songs` and inlined.
+- 当前“发音/音节（na/da/…）”仍处于概念设计阶段，无法真正发出标准的 Na/Da 等语音，仅为音色/质感模拟。
+- The current “phoneme/syllable (na/da/…)” feature is still conceptual and does not produce true Na/Da speech, only timbre-style simulation.
+- 形象已比初版稍微完善，但仍有继续优化空间。
+- The mascot is a bit more refined than the initial version, but still has room to improve.
 - 形象仍需完善，但作者已无能为力（欢迎后续优化）。
 - The mascot still needs polish, but the author has reached their limit (PRs welcome).
+
+## 版本更新小结
+## Version Summary
+- 大版本 v1（最后一次在当天凌晨 5 点前的大更新）：`b34722c`（2026-01-24 00:33 +0800）
+- Major v1 (last big update before 5am local): `b34722c` (2026-01-24 00:33 +0800)
+  - 自动弹奏 + 文档更新为主线能力。
+  - Auto-play and docs update as the baseline feature set.
+- 大版本 v2（当前大版本）：`bfcf8ce`（2026-01-24 23:54 +0800）
+- Major v2 (current): `bfcf8ce` (2026-01-24 23:54 +0800)
+  - 头像细化（猫/鱼切换、纹理、眼动）、音节/发音链路强化与控件完善。
+  - Refined avatars (cat/fish, textures, eye motion), enhanced syllable/phoneme chain and controls.
 
 ## 许可证
 ## License

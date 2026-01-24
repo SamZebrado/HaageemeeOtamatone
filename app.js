@@ -64,6 +64,7 @@
   const wahVal = $("#wahVal");
   const mouthAmpVal = $("#mouthAmpVal");
   const eyeColorVal = $("#eyeColorVal");
+  const sakaEyePalette = $("#sakaEyePalette");
   const rangeVal = $("#rangeVal");
   const speedVal = $("#speedVal");
   const songProgress = $("#songProgress");
@@ -148,6 +149,7 @@
   stylePresetValue = clamp(stylePresetValue, 0, 4);
   let phonemeEngineValue = localStorage.getItem("otama_phoneme_engine") || "formant";
   if (phonemeEngineValue !== "formant" && phonemeEngineValue !== "tadpole") phonemeEngineValue = "formant";
+  let sakaEyePaletteValue = localStorage.getItem("otama_saka_eye_palette") || "classic";
   let syllRateHz = Number(localStorage.getItem("otama_syll_rate_hz"));
   if (!Number.isFinite(syllRateHz)) syllRateHz = 7.5;
   let syllGapMs = Number(localStorage.getItem("otama_syll_gap_ms"));
@@ -859,6 +861,10 @@
         const n = notes[i];
         if (t >= n.t && t <= n.t + n.d) {
           if (songNote) songNote.textContent = `MIDI ${n.midi}`;
+          if (pointers.mouthId === null) {
+            const open = clamp(0.45 + clamp(n.vel ?? 0.9, 0, 1) * 0.5, 0.3, 1);
+            applyMouthOpen(open);
+          }
           break;
         }
       }
@@ -1017,9 +1023,9 @@
     if (avatarMode === "saka") return;
     const t = clamp(params.pitchT, 0, 1);
     const energy = (engine.isOn ? 1 : 0.4) * lerp(0.6, 1.0, 1 - t);
-    const baseLeft = [-18, -4, 12];
-    const baseRight = [-18, -4, 12];
-    const yOffsets = [-6, 0, 6];
+    const baseLeft = [20, 6, -10];
+    const baseRight = [-20, -6, 10];
+    const yOffsets = [-9, 0, 9];
     whiskerLeft.forEach((w, i) => {
       const jitter = Math.sin(now * 0.004 + i * 1.7) * 2.5 * energy;
       w.style.setProperty("--whisker-rot", `${baseLeft[i] + jitter}deg`);
@@ -1591,10 +1597,38 @@
     localStorage.setItem("otama_style_preset", String(val));
   }
 
+  function applySakaEyePalette(preset) {
+    const palettes = {
+      classic: { eye: "#ffffff", iris: "#111111" },
+      mint: { eye: "#f1fffb", iris: "#3a7f74" },
+      sky: { eye: "#f4fbff", iris: "#4f86c9" },
+      amber: { eye: "#fff8ed", iris: "#b76a2c" },
+      plum: { eye: "#fbf2ff", iris: "#6a3f8f" },
+    };
+    const p = palettes[preset] || palettes.classic;
+    if (head) {
+      head.style.setProperty("--fish-eye", p.eye);
+      head.style.setProperty("--fish-iris", p.iris);
+    }
+  }
+
   if (stylePreset) {
     stylePreset.value = String(stylePresetValue);
     stylePreset.addEventListener("input", () => applyStylePreset(stylePreset.value));
     applyStylePreset(stylePresetValue);
+  }
+
+  if (sakaEyePalette) {
+    if (!["classic","mint","sky","amber","plum"].includes(sakaEyePaletteValue)) {
+      sakaEyePaletteValue = "classic";
+    }
+    sakaEyePalette.value = sakaEyePaletteValue;
+    applySakaEyePalette(sakaEyePaletteValue);
+    sakaEyePalette.addEventListener("change", () => {
+      sakaEyePaletteValue = sakaEyePalette.value;
+      localStorage.setItem("otama_saka_eye_palette", sakaEyePaletteValue);
+      applySakaEyePalette(sakaEyePaletteValue);
+    });
   }
 
   // --- Auto play UI ---
