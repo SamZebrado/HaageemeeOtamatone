@@ -1162,7 +1162,7 @@
   function ensureAudioFromGesture() {
     // called inside a user gesture (pointer down)
     if (!engine.isReady) {
-      engine.init().then(() => {
+      const initPromise = engine.init().then(() => {
         engine.setVoiceStylePreset(stylePresetValue);
         engine.setPhonemeEngine(phonemeEngineValue);
         engine.setSyllableParams(syllRateHz, syllGapMs, syllArtic);
@@ -1177,9 +1177,11 @@
       });
       btnPower.textContent = "声音已启用";
       btnPower.classList.add("active");
+      return initPromise;
     } else if (engine.ctx && engine.ctx.state !== "running") {
       engine.ctx.resume();
     }
+    return Promise.resolve();
   }
 
   function stopSyllableHold() {
@@ -1204,7 +1206,8 @@
   }
 
   ribbon.addEventListener("pointerdown", (ev) => {
-    ensureAudioFromGesture();
+    const needsInit = !engine.isReady;
+    const initPromise = ensureAudioFromGesture();
 
     if (pointers.ribbonId !== null) return; // already taken
     pointers.ribbonId = ev.pointerId;
@@ -1213,11 +1216,19 @@
 
     const f = getRibbonFreqFromPointer(ev.clientY);
     pointers.lastFreq = f;
-    engine.setFrequency(f);
-    if (syllableEnabled) {
-      startSyllableHold(clamp(params.volume, 0.2, 1));
+    const startSound = () => {
+      if (!engine.isReady) return;
+      engine.setFrequency(pointers.lastFreq ?? f);
+      if (syllableEnabled) startSyllableHold(clamp(params.volume, 0.2, 1));
+      engine.gate(true);
+    };
+    if (!needsInit) {
+      startSound();
+    } else {
+      initPromise.then(() => {
+        if (pointers.ribbonId === ev.pointerId) startSound();
+      });
     }
-    engine.gate(true);
 
     setRibbonCursor(ev.clientY);
     setPitchFromPointer(ev.clientY);
