@@ -1,6 +1,12 @@
 # 橘猫电音蝌蚪（Otamatone）
 # Orange Cat Otamatone
 
+> 目前出了问题，我也不知道该怎么办：只有鱼模式打开音节的时候手动按压会连续出声，其他情况都是按一次就没声了😂  
+> 本项目只做启发和展示，暂时不保证可正常使用。  
+>  
+> There is a known issue right now: only in fish mode with syllables ON does manual playing sustain; otherwise it goes silent after one press 😂  
+> This project is for inspiration/demo only and currently not guaranteed to be fully usable.
+
 这是一个可触摸的 Otamatone 风格网页乐器，支持滑杆音高、猫头嘴巴 wah、特效与直播回复面板，并包含猫/鱼头像切换与音节唱感。
 This is a touch-friendly Otamatone-style web instrument with pitch ribbon, cat mouth wah, effects, a livestream reply panel, plus cat/fish avatar switching and syllable vocalization.
 
