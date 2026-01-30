@@ -680,7 +680,7 @@
         }
         if (this.syllableGateGain) {
           this.syllableGateGain.gain.cancelScheduledValues(now);
-          this.syllableGateGain.gain.setTargetAtTime(0.0, now, 0.02);
+          this.syllableGateGain.gain.setTargetAtTime(1.0, now, 0.02);
         }
         if (this.nasalGain) {
           this.nasalGain.gain.cancelScheduledValues(now);
@@ -702,7 +702,7 @@
       if (this.syllableGateGain) {
         const now = this.ctx.currentTime;
         this.syllableGateGain.gain.cancelScheduledValues(now);
-        this.syllableGateGain.gain.setTargetAtTime(0.0, now, 0.02);
+        this.syllableGateGain.gain.setTargetAtTime(1.0, now, 0.02);
       }
       if (this.nasalGain) {
         const now = this.ctx.currentTime;
